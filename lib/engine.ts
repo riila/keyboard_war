@@ -22,6 +22,8 @@ export interface FinishResult {
 export interface EngineOptions {
   lang: Lang;
   mode: 'bot' | 'pvp';
+  /** Only meaningful for a pvp match: which label the chip shows. */
+  kind?: 'random' | 'friend';
   isHost: boolean;
   foeNick: string;
   myNick: string;
@@ -687,7 +689,9 @@ export class BattleEngine {
 
     this.el.roundNum.textContent = String(Math.max(1, this.round));
     this.el.modeLabel.textContent =
-      this.o.mode === 'bot' ? d.modeBot(this.botLv) : d.modeRandom;
+      this.o.mode === 'bot'
+        ? d.modeBot(this.botLv)
+        : this.o.kind === 'friend' ? d.modeFriend : d.modeRandom;
 
     if (this.o.mode === 'bot') {
       const tier = this.botLv <= 3 ? 0 : this.botLv <= 7 ? 1 : 2;

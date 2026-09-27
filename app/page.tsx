@@ -252,6 +252,14 @@ export default function Page() {
       setNetMsg({ text: T[lang].netLeft, tone: 'err' });
       setView('friend');
     });
+
+    if (!rematch.current) return;
+    // the friend may still be sitting on their result screen with nothing
+    // listening yet, so keep offering until they answer. The loop lives here,
+    // not in the click handler, because only a rendered view is a real view.
+    l.send('rdy', {});
+    const beat = window.setInterval(() => l.send('rdy', {}), 1500);
+    return () => window.clearInterval(beat);
   }, [view, lang, startFriendMatch]);
 
   /* ---------------- finish ---------------- */
@@ -284,14 +292,6 @@ export default function Page() {
       rematch.current = true;
       setRoomLead(T[lang].rmRematchWait);
       setView('room');
-      // the friend may still be sitting on their result screen with nothing
-      // listening, so keep offering until they answer
-      const beat = () => {
-        if (viewRef.current !== 'room' || !rematch.current) return;
-        link.current?.send('rdy', {});
-        later(beat, 1500);
-      };
-      beat();
       return;
     }
     startSearch(true);
@@ -353,6 +353,7 @@ export default function Page() {
         <Battle
           lang={lang}
           mode={battle.mode}
+          kind={matchKind.current}
           isHost={battle.isHost}
           myNick={nick || 'Wanderer'}
           foeNick={battle.foeNick}

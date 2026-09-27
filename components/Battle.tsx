@@ -8,6 +8,7 @@ import type { Lang } from '@/lib/words';
 export interface BattleProps {
   lang: Lang;
   mode: 'bot' | 'pvp';
+  kind?: 'random' | 'friend';
   isHost: boolean;
   myNick: string;
   foeNick: string;
@@ -37,6 +38,7 @@ export default function Battle(props: BattleProps) {
     const opts: EngineOptions = {
       lang: latest.current.lang,
       mode: latest.current.mode,
+      kind: latest.current.kind,
       isHost: latest.current.isHost,
       myNick: latest.current.myNick,
       foeNick: latest.current.foeNick,
