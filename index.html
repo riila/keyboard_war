@@ -1,0 +1,2563 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KEYBOARD WAR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Noto+Serif+KR:wght@400;600;900&family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   KEYBOARD WAR — v0.2 prototype
+   Art direction: dark fantasy jungle (LoL / Lost Ark lineage)
+   No retro / pixel / 8-bit styling anywhere.
+   ============================================================ */
+
+:root{
+  --void:#04080a; --deep:#071310; --jungle-1:#0b211c; --jungle-2:#10312a;
+  --gold:#c9a763; --gold-hi:#f2dfae; --gold-lo:#7e6634;
+  --ally:#35e0a6; --ally-deep:#0e6b52;
+  --foe:#e8493c;  --foe-deep:#7a1d16;
+  --parch:#ece0c6; --muted:#8ba39c; --dim:#5c706b;
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; }
+body{
+  background:var(--void); color:var(--parch);
+  font-family:'Gowun Batang','Noto Serif KR',Georgia,serif;
+  overflow:hidden; -webkit-font-smoothing:antialiased; user-select:none;
+}
+
+/* ===================== BACKGROUND ===================== */
+#backdrop{ position:fixed; inset:0; z-index:0; overflow:hidden; }
+.bg-base{
+  position:absolute; inset:0;
+  background:
+    radial-gradient(120% 90% at 50% 8%,  rgba(53,224,166,.10), transparent 55%),
+    radial-gradient(90%  70% at 12% 95%, rgba(18,49,42,.85),   transparent 60%),
+    radial-gradient(90%  70% at 88% 95%, rgba(18,49,42,.70),   transparent 60%),
+    linear-gradient(#071310 0%, #04080a 55%, #060f0d 100%);
+}
+.fog{
+  position:absolute; width:150%; height:150%; left:-25%; top:-25%;
+  background:radial-gradient(closest-side, rgba(53,224,166,.055), transparent 70%);
+  filter:blur(18px); animation:drift 34s ease-in-out infinite alternate;
+}
+.fog.b{
+  background:radial-gradient(closest-side, rgba(201,167,99,.05), transparent 70%);
+  animation-duration:47s; animation-direction:alternate-reverse;
+}
+@keyframes drift{
+  from{ transform:translate3d(-6%,-3%,0) scale(1); }
+  to  { transform:translate3d(7%,4%,0) scale(1.18); }
+}
+.canopy{ position:absolute; inset:0; pointer-events:none; }
+.canopy svg{ position:absolute; }
+.canopy .tl{ top:-7%;  left:-5%;  width:50vw; }
+.canopy .tr{ top:-10%; right:-6%; width:46vw; opacity:.9; transform:scaleX(-1); }
+.canopy .bl{ bottom:-9%; left:-7%; width:42vw; opacity:.85; transform:scaleY(-1); }
+.canopy .br{ bottom:-11%; right:-7%; width:40vw; opacity:.75; transform:scale(-1,-1); }
+.vignette{
+  position:absolute; inset:0; pointer-events:none;
+  background:
+    radial-gradient(75% 60% at 50% 45%, transparent 40%, rgba(2,5,5,.78) 100%),
+    linear-gradient(to top, rgba(2,6,5,.9), transparent 38%);
+}
+.spores{ position:absolute; inset:0; pointer-events:none; }
+.spore{
+  position:absolute; width:3px; height:3px; border-radius:50%;
+  background:rgba(190,255,228,.7); box-shadow:0 0 7px rgba(53,224,166,.85);
+  animation:float linear infinite;
+}
+@keyframes float{
+  from{ transform:translateY(8vh) translateX(0) scale(.5); opacity:0; }
+  12%{ opacity:.85; } 85%{ opacity:.5; }
+  to{ transform:translateY(-105vh) translateX(var(--dx,20px)) scale(1.1); opacity:0; }
+}
+
+/* ===================== LANGUAGE BAR ===================== */
+#langBar{
+  position:fixed; z-index:40; top:18px; right:22px;
+  display:flex; align-items:center; gap:10px; padding:8px 12px;
+  background:linear-gradient(180deg,rgba(18,38,33,.9),rgba(5,13,11,.94));
+  border:1px solid rgba(201,167,99,.32);
+  clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);
+}
+#langBar[hidden]{ display:none; }
+#langBar .lb-label{
+  font-family:'Cinzel',serif; font-size:9.5px; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--gold-lo); white-space:nowrap;
+}
+#langSelect{
+  appearance:none; -webkit-appearance:none;
+  background:transparent; border:0; outline:none; cursor:pointer;
+  color:var(--gold-hi);
+  font-family:'Gowun Batang','Noto Serif KR',serif; font-size:14px;
+  letter-spacing:.04em; padding-right:18px;
+  background-image:linear-gradient(45deg,transparent 50%,var(--gold) 50%),
+                   linear-gradient(135deg,var(--gold) 50%,transparent 50%);
+  background-position:right 6px top 50%, right 1px top 50%;
+  background-size:5px 5px,5px 5px; background-repeat:no-repeat;
+}
+#langSelect option{ background:#08150f; color:var(--parch); }
+
+/* ===================== STAGE ===================== */
+#stage{
+  position:relative; z-index:2; height:100vh; width:100%;
+  display:grid; grid-template-rows:auto 1fr auto;
+  padding:22px clamp(14px,3vw,46px) 26px;
+  max-width:1180px; margin:0 auto;
+}
+#stage[hidden]{ display:none; }
+.rule{
+  height:1px; border:0;
+  background:linear-gradient(90deg,transparent,var(--gold-lo),var(--gold),var(--gold-lo),transparent);
+  opacity:.7;
+}
+
+/* ===================== HUD ===================== */
+.hud{ display:grid; grid-template-columns:1fr auto 1fr; align-items:start; gap:clamp(10px,2vw,32px); }
+.fighter{ display:flex; gap:16px; align-items:flex-start; width:100%; max-width:390px; }
+.fighter.foe{ flex-direction:row-reverse; text-align:right; margin-left:auto; }
+.sigil{ position:relative; flex:0 0 auto; width:78px; height:88px; display:grid; place-items:center; }
+.sigil svg{ width:100%; height:100%; overflow:visible; }
+.sigil.hit{ animation:sigilHit .4s ease-out; }
+@keyframes sigilHit{
+  0%{transform:translateX(0)} 25%{transform:translateX(-7px) rotate(-2deg)}
+  55%{transform:translateX(5px) rotate(1.5deg)} 100%{transform:translateX(0)}
+}
+.fbody{ flex:1 1 auto; min-width:0; padding-top:6px; }
+.fname{
+  font-family:'Cinzel',serif; font-weight:700; font-size:15px;
+  letter-spacing:.16em; text-transform:uppercase; color:var(--gold-hi);
+  text-shadow:0 0 14px rgba(201,167,99,.4);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ftitle{ font-size:11.5px; color:var(--dim); letter-spacing:.1em; margin-top:2px; }
+.ftitle .lv{ color:var(--gold); font-family:'Cinzel',serif; font-weight:700; display:inline-block; }
+.ftitle .lv.up{ animation:lvPop .7s ease-out; }
+.ftitle .lv.down{ animation:lvPop .7s ease-out; color:var(--foe); }
+@keyframes lvPop{ 0%{transform:scale(1)} 30%{transform:scale(1.5); filter:brightness(1.7)} 100%{transform:scale(1)} }
+
+.bar-wrap{ margin-top:9px; }
+.bar{
+  position:relative; height:17px;
+  background:linear-gradient(#0a1412,#06100e);
+  border:1px solid rgba(201,167,99,.42);
+  box-shadow:inset 0 2px 7px rgba(0,0,0,.85),0 0 0 1px rgba(0,0,0,.6);
+  overflow:hidden;
+}
+.bar .ghost{
+  position:absolute; inset:0 auto 0 0; width:100%;
+  background:rgba(232,73,60,.42);
+  transition:width .55s cubic-bezier(.2,.7,.2,1) .12s;
+}
+.fighter.foe .bar .ghost{ inset:0 0 0 auto; }
+.bar .fill{
+  position:absolute; inset:0 auto 0 0; width:100%;
+  background:linear-gradient(180deg,#5cf5c0,var(--ally) 38%,var(--ally-deep));
+  box-shadow:0 0 16px rgba(53,224,166,.5),inset 0 -4px 8px rgba(0,0,0,.4);
+  transition:width .28s cubic-bezier(.2,.8,.2,1);
+}
+.fighter.foe .bar .fill{
+  inset:0 0 0 auto;
+  background:linear-gradient(180deg,#ff8a7d,var(--foe) 38%,var(--foe-deep));
+  box-shadow:0 0 16px rgba(232,73,60,.5),inset 0 -4px 8px rgba(0,0,0,.4);
+}
+.bar .sheen{
+  position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(115deg,rgba(255,255,255,.07) 0 2px,transparent 2px 9px);
+}
+.bar .hpnum{
+  position:absolute; inset:0; display:grid; place-items:center;
+  font-family:'Cinzel',serif; font-size:11px; font-weight:700; letter-spacing:.1em;
+  color:#f2fff7;
+  text-shadow:0 0 4px rgba(0,0,0,.95), 0 0 9px rgba(0,0,0,.8), 0 1px 2px rgba(0,0,0,.9);
+}
+.rage{
+  position:relative; height:6px; margin-top:5px;
+  background:#06100e; border:1px solid rgba(201,167,99,.26); overflow:hidden;
+}
+.rage .rfill{
+  position:absolute; inset:0 auto 0 0; width:0;
+  background:linear-gradient(90deg,var(--gold-lo),var(--gold),var(--gold-hi));
+  transition:width .3s ease;
+}
+.fighter.foe .rage .rfill{ inset:0 0 0 auto; }
+.rage.full{ border-color:var(--gold-hi); box-shadow:0 0 12px rgba(242,223,174,.6); }
+.rage.full .rfill{ animation:ragePulse 1.1s ease-in-out infinite; }
+@keyframes ragePulse{ 50%{ filter:brightness(1.5) } }
+.rage-label{
+  font-family:'Cinzel',serif; font-size:9.5px; letter-spacing:.22em;
+  color:var(--gold-lo); margin-top:4px; text-transform:uppercase;
+}
+.rage-label.ready{ color:var(--gold-hi); text-shadow:0 0 10px rgba(242,223,174,.8); }
+
+.buffs{ margin-top:6px; min-height:17px; display:flex; gap:6px; }
+.fighter.foe .buffs{ justify-content:flex-end; }
+.buff{
+  display:inline-flex; align-items:center; gap:5px; padding:2px 8px 2px 5px;
+  border:1px solid rgba(232,56,44,.55);
+  background:linear-gradient(180deg,rgba(232,56,44,.2),rgba(7,17,15,.85));
+  font-family:'Cinzel',serif; font-size:9.5px; letter-spacing:.14em;
+  color:#ffb3aa; white-space:nowrap;
+  animation:buffIn .35s cubic-bezier(.2,.8,.2,1);
+}
+.buff .vial{ flex:0 0 auto; width:11px; height:15px; }
+@keyframes buffIn{ from{ opacity:0; transform:translateY(-5px) scale(.9) } to{ opacity:1; transform:none } }
+
+.round-pill{ text-align:center; padding-top:8px; min-width:120px; }
+.round-pill .rlabel{
+  font-family:'Cinzel',serif; font-size:10px; letter-spacing:.34em;
+  color:var(--gold-lo); text-transform:uppercase;
+}
+.round-pill .rnum{
+  font-family:'Cinzel',serif; font-weight:900; font-size:34px; line-height:1;
+  color:var(--gold-hi); margin-top:2px; text-shadow:0 0 22px rgba(201,167,99,.55);
+}
+.round-pill .rmode{ font-size:11px; color:var(--dim); margin-top:5px; letter-spacing:.08em; }
+.round-pill .rsets{
+  margin-top:4px; font-family:'Cinzel',serif; font-size:13px; font-weight:700;
+  letter-spacing:.18em; color:var(--gold); white-space:nowrap;
+}
+.round-pill .rsets[hidden]{ display:none; }
+.round-pill .rseek{
+  margin-top:4px; font-size:10px; letter-spacing:.12em; color:rgba(53,224,166,.75);
+  animation:seekBlink 1.6s ease-in-out infinite;
+}
+.round-pill .rseek[hidden]{ display:none; }
+@keyframes seekBlink{ 50%{ opacity:.35 } }
+
+.exit-hint{
+  position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:3;
+  font-family:'Cinzel',serif; font-size:10px; letter-spacing:.24em;
+  text-transform:uppercase; color:var(--dim); pointer-events:none;
+}
+.exit-hint[hidden]{ display:none; }
+
+.handoff-num{
+  margin:26px auto 4px; width:150px; height:150px; position:relative;
+  display:grid; place-items:center;
+  font-family:'Cinzel',serif; font-weight:900; font-size:74px; color:var(--gold-hi);
+  text-shadow:0 0 40px rgba(201,167,99,.7);
+}
+.handoff-num::before{
+  content:''; position:absolute; inset:0; border-radius:50%;
+  border:1px solid rgba(201,167,99,.35);
+  border-top-color:var(--ally); animation:orbSpin 1.1s linear infinite;
+}
+.handoff-num span{ animation:hoPop .45s cubic-bezier(.2,.9,.2,1); }
+@keyframes hoPop{ from{ opacity:0; transform:scale(1.6) } to{ opacity:1; transform:none } }
+
+/* ===================== ARENA ===================== */
+.arena{
+  position:relative; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:20px; padding:10px 0;
+}
+.arena::after{
+  content:''; position:absolute; z-index:-1;
+  left:50%; bottom:-4%; transform:translateX(-50%);
+  width:min(900px,96%); height:320px;
+  background:radial-gradient(60% 50% at 50% 100%, rgba(53,224,166,.15), transparent 70%);
+  filter:blur(14px); pointer-events:none;
+}
+.word-frame{
+  position:relative; width:min(620px,92%); padding:26px 34px 22px;
+  background:linear-gradient(180deg,rgba(20,38,33,.82),rgba(6,16,14,.9));
+  border:1px solid rgba(201,167,99,.3);
+  box-shadow:inset 0 0 44px rgba(0,0,0,.72),0 18px 60px rgba(0,0,0,.65),0 0 0 1px rgba(0,0,0,.5);
+  clip-path:polygon(24px 0,100% 0,100% calc(100% - 24px),calc(100% - 24px) 100%,0 100%,0 24px);
+  text-align:center;
+}
+.word-frame::before,.word-frame::after{
+  content:''; position:absolute; width:34px; height:34px;
+  border:1px solid var(--gold); opacity:.55;
+}
+.word-frame::before{ top:9px; right:9px; border-left:0; border-bottom:0; }
+.word-frame::after{ bottom:9px; left:9px; border-right:0; border-top:0; }
+.word-kicker{
+  display:inline-block; margin-bottom:14px; padding:3px 12px;
+  font-family:'Cinzel',serif; font-size:9.5px; letter-spacing:.26em;
+  text-transform:uppercase; color:var(--gold-lo);
+  border:1px solid rgba(201,167,99,.3);
+}
+.word-kicker.ko{ color:var(--ally); border-color:rgba(53,224,166,.45); }
+.word{
+  font-family:'Noto Serif KR','Cinzel',serif; font-weight:900;
+  font-size:clamp(34px,5.4vw,60px); line-height:1.16;
+  letter-spacing:.02em; min-height:1.2em; word-break:keep-all;
+}
+.word .ch{ transition:color .08s linear,text-shadow .08s linear; color:var(--parch); }
+.word .ch.done{ color:var(--ally); text-shadow:0 0 22px rgba(53,224,166,.6); }
+.word .ch.cur{ color:var(--gold-hi); text-shadow:0 0 26px rgba(242,223,174,.8); border-bottom:3px solid var(--gold); }
+.word .ch.sp{ display:inline-block; width:.42em; }
+.word.err .ch.cur{ color:var(--foe); border-bottom-color:var(--foe); text-shadow:0 0 22px rgba(232,73,60,.75); }
+.word-hint{
+  margin-top:13px; font-size:13.5px; color:var(--muted);
+  letter-spacing:.06em; font-style:italic; min-height:1.3em;
+}
+.tracks{ width:min(620px,92%); display:flex; flex-direction:column; gap:9px; }
+.trow{ display:flex; align-items:center; gap:12px; }
+.tname{
+  flex:0 0 76px; font-family:'Cinzel',serif; font-size:9.5px;
+  letter-spacing:.2em; text-transform:uppercase; color:var(--dim);
+}
+.trow.foe .tname{ text-align:right; color:rgba(232,73,60,.72); }
+.trow.ally .tname{ color:rgba(53,224,166,.72); }
+.track{
+  position:relative; flex:1 1 auto; height:9px;
+  background:#050d0c; border:1px solid rgba(201,167,99,.2); overflow:hidden;
+}
+.track .tfill{
+  position:absolute; inset:0 auto 0 0; width:0;
+  background:linear-gradient(90deg,var(--ally-deep),var(--ally));
+  box-shadow:0 0 12px rgba(53,224,166,.55);
+}
+.trow.foe .track .tfill{
+  background:linear-gradient(90deg,var(--foe-deep),var(--foe));
+  box-shadow:0 0 12px rgba(232,73,60,.55);
+}
+.input-shell{ position:relative; width:min(620px,92%); }
+#typeInput{
+  width:100%; padding:15px 20px;
+  background:linear-gradient(180deg,rgba(10,22,19,.95),rgba(4,10,9,.98));
+  border:1px solid rgba(201,167,99,.4); border-radius:0;
+  color:var(--gold-hi); font-family:'Noto Serif KR',serif; font-weight:600;
+  font-size:21px; letter-spacing:.04em; text-align:center; outline:none;
+  box-shadow:inset 0 2px 14px rgba(0,0,0,.8),0 0 0 1px rgba(0,0,0,.5);
+  transition:border-color .18s,box-shadow .18s;
+}
+#typeInput::placeholder{ color:var(--dim); font-weight:400; font-size:15px; letter-spacing:.14em; }
+#typeInput:focus{ border-color:var(--gold); box-shadow:inset 0 2px 14px rgba(0,0,0,.8),0 0 26px rgba(201,167,99,.28); }
+#typeInput.err{
+  border-color:var(--foe); color:#ff9c92;
+  box-shadow:inset 0 2px 14px rgba(0,0,0,.8),0 0 26px rgba(232,73,60,.4);
+  animation:nudge .22s ease-out;
+}
+@keyframes nudge{ 0%,100%{transform:translateX(0)} 30%{transform:translateX(-6px)} 70%{transform:translateX(5px)} }
+.input-state{
+  margin-top:12px; display:flex; gap:10px; align-items:center;
+  justify-content:center; flex-wrap:wrap;
+}
+.st-chip{
+  display:inline-flex; align-items:center; gap:9px;
+  padding:7px 14px;
+  border:1px solid rgba(201,167,99,.3);
+  background:rgba(4,11,9,.72);
+  transition:border-color .18s, background .18s;
+}
+.st-chip[hidden]{ display:none; }
+.st-chip .k{
+  font-family:'Cinzel',serif; font-size:9.5px; letter-spacing:.22em;
+  text-transform:uppercase; color:var(--dim);
+}
+.st-chip .v{
+  font-family:'Gowun Batang','Noto Serif KR',serif; font-weight:700;
+  font-size:15px; letter-spacing:.06em; color:var(--gold-hi);
+}
+.st-chip.ok{ border-color:rgba(53,224,166,.55); background:rgba(6,26,21,.72); }
+.st-chip.ok .v{ color:var(--ally); }
+.st-chip.bad{ border-color:var(--foe); background:rgba(58,12,9,.6); animation:chipWarn 1s ease-in-out infinite; }
+.st-chip.bad .v{ color:#ff9186; }
+.st-chip.bad .k{ color:rgba(255,145,134,.7); }
+@keyframes chipWarn{ 50%{ box-shadow:0 0 22px rgba(232,73,60,.55) } }
+.ime-note{ margin-top:10px; text-align:center; font-size:11.5px; color:var(--dim); letter-spacing:.06em; }
+.ime-note.warn{ color:#ff9186; font-size:13px; letter-spacing:.04em; }
+.combo-chip{
+  position:absolute; left:18px; top:50%; transform:translateY(-50%);
+  font-family:'Cinzel',serif; font-size:12px; letter-spacing:.16em;
+  color:var(--gold); opacity:0; transition:opacity .2s; pointer-events:none;
+}
+.combo-chip.on{ opacity:1; text-shadow:0 0 14px rgba(201,167,99,.7); }
+
+/* ===================== FX ===================== */
+#fx{ position:fixed; inset:0; z-index:5; pointer-events:none; overflow:hidden; }
+.dmg{
+  position:absolute; transform:translate(-50%,0);
+  font-family:'Cinzel',serif; font-weight:900; font-size:48px;
+  animation:dmgFloat 1.05s cubic-bezier(.2,.7,.2,1) forwards;
+}
+.dmg.on-foe{ color:#ff9186; text-shadow:0 0 26px rgba(232,73,60,.9),0 3px 0 rgba(0,0,0,.6); }
+.dmg.on-ally{ color:#ffd9a0; text-shadow:0 0 26px rgba(232,73,60,.8),0 3px 0 rgba(0,0,0,.6); }
+.pot{
+  position:absolute; transform:translate(-50%,0);
+  display:flex; align-items:center; gap:9px;
+  font-family:'Gowun Batang','Noto Serif KR',serif; font-weight:700;
+  font-size:21px; white-space:nowrap;
+  animation:potFloat 1.35s cubic-bezier(.2,.7,.2,1) forwards;
+}
+@keyframes potFloat{
+  0%{ opacity:0; transform:translate(-50%,-10px) scale(.6); }
+  16%{ opacity:1; transform:translate(-50%,6px) scale(1.12); }
+  30%{ transform:translate(-50%,10px) scale(1); }
+  100%{ opacity:0; transform:translate(-50%,62px) scale(.95); }
+}
+.pot .vial{ flex:0 0 auto; width:28px; height:38px; }
+.pot.heal{ color:#9ed2ff; text-shadow:0 0 22px rgba(58,155,255,.95),0 2px 0 rgba(0,0,0,.7); }
+.pot.heal .vial{ filter:drop-shadow(0 0 10px rgba(58,155,255,.85)); }
+.pot.atk{  color:#ff9c92; text-shadow:0 0 22px rgba(232,56,44,.95),0 2px 0 rgba(0,0,0,.7); }
+.pot.atk .vial{ filter:drop-shadow(0 0 10px rgba(232,56,44,.85)); }
+
+.dmg.crit{ font-size:66px; color:var(--gold-hi); text-shadow:0 0 34px rgba(242,223,174,1),0 3px 0 rgba(0,0,0,.7); }
+@keyframes dmgFloat{
+  0%{ opacity:0; transform:translate(-50%,10px) scale(.55); }
+  16%{ opacity:1; transform:translate(-50%,-12px) scale(1.18); }
+  30%{ transform:translate(-50%,-16px) scale(1); }
+  100%{ opacity:0; transform:translate(-50%,-84px) scale(.94); }
+}
+.slash{
+  position:absolute; height:4px; width:0;
+  background:linear-gradient(90deg,transparent,var(--gold-hi),#fff,var(--gold-hi),transparent);
+  filter:blur(.6px) drop-shadow(0 0 12px rgba(242,223,174,.9));
+  animation:slashGo .34s ease-out forwards;
+}
+@keyframes slashGo{ 0%{width:0;opacity:0} 20%{opacity:1} 100%{width:var(--w,300px);opacity:0} }
+.burst{ position:absolute; width:0; height:0; }
+.spark{ position:absolute; width:4px; height:4px; border-radius:50%; animation:sparkGo .7s ease-out forwards; }
+@keyframes sparkGo{ 0%{opacity:1;transform:translate(0,0) scale(1.3)} 100%{opacity:0;transform:translate(var(--sx),var(--sy)) scale(.2)} }
+.screenflash{ position:absolute; inset:0; animation:flashGo .42s ease-out forwards; }
+@keyframes flashGo{ 0%{opacity:.55} 100%{opacity:0} }
+.ult-sweep{
+  position:absolute; inset:0;
+  background:linear-gradient(105deg,transparent 35%,rgba(242,223,174,.85) 48%,rgba(255,255,255,.95) 50%,rgba(242,223,174,.85) 52%,transparent 65%);
+  transform:translateX(-100%); animation:sweepGo .62s cubic-bezier(.4,0,.2,1) forwards;
+  mix-blend-mode:screen;
+}
+@keyframes sweepGo{ to{ transform:translateX(100%) } }
+.callout{
+  position:absolute; left:50%; top:38%; transform:translate(-50%,-50%);
+  font-family:'Cinzel',serif; font-weight:900;
+  font-size:clamp(40px,7vw,86px); letter-spacing:.1em; white-space:nowrap;
+  animation:calloutGo .95s cubic-bezier(.15,.8,.2,1) forwards;
+}
+.callout.good{ color:var(--gold-hi); text-shadow:0 0 40px rgba(242,223,174,.9),0 0 90px rgba(53,224,166,.5); }
+.callout.bad{ color:#ff8b7f; text-shadow:0 0 40px rgba(232,73,60,.9); }
+@keyframes calloutGo{
+  0%{ opacity:0; transform:translate(-50%,-50%) scale(.6); letter-spacing:.42em; }
+  22%{ opacity:1; transform:translate(-50%,-50%) scale(1.05); letter-spacing:.1em; }
+  70%{ opacity:1; }
+  100%{ opacity:0; transform:translate(-50%,-50%) scale(1.12); }
+}
+.shake{ animation:shakeGo .38s cubic-bezier(.36,.07,.19,.97); }
+@keyframes shakeGo{
+  10%{transform:translate(-7px,3px) rotate(-.3deg)} 25%{transform:translate(8px,-4px) rotate(.35deg)}
+  40%{transform:translate(-6px,-3px)} 55%{transform:translate(5px,3px)}
+  70%{transform:translate(-3px,1px)} 100%{transform:translate(0,0)}
+}
+
+/* ===================== OVERLAY / PANELS ===================== */
+#ui{
+  position:fixed; inset:0; z-index:20; display:grid; place-items:center;
+  padding:28px;
+  background:radial-gradient(70% 60% at 50% 40%, rgba(8,22,19,.7), rgba(2,6,5,.94) 75%);
+  backdrop-filter:blur(3px); overflow-y:auto;
+}
+#ui[hidden]{ display:none; }
+.panel{
+  width:min(680px,100%); text-align:center;
+  padding:clamp(26px,4vw,44px) clamp(22px,4vw,52px);
+  background:linear-gradient(180deg,rgba(17,35,30,.9),rgba(5,13,11,.95));
+  border:1px solid rgba(201,167,99,.36);
+  box-shadow:inset 0 0 60px rgba(0,0,0,.7),0 26px 80px rgba(0,0,0,.8);
+  clip-path:polygon(30px 0,100% 0,100% calc(100% - 30px),calc(100% - 30px) 100%,0 100%,0 30px);
+  position:relative; animation:fadeIn .38s ease-out;
+}
+.panel[hidden]{ display:none; }
+@keyframes fadeIn{ from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none} }
+.panel::before,.panel::after{
+  content:''; position:absolute; width:44px; height:44px;
+  border:1px solid var(--gold); opacity:.5;
+}
+.panel::before{ top:11px; right:11px; border-left:0; border-bottom:0; }
+.panel::after{ bottom:11px; left:11px; border-right:0; border-top:0; }
+
+.crest{ width:74px; height:74px; margin:0 auto 14px; }
+.crest svg{ width:100%; height:100%; }
+.title{
+  font-family:'Cinzel',serif; font-weight:900;
+  font-size:clamp(28px,5.6vw,62px); line-height:1.05;
+  letter-spacing:.09em; white-space:nowrap;
+  background:linear-gradient(180deg,#fdf3d9 10%,var(--gold) 55%,#6f5828 100%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  filter:drop-shadow(0 0 30px rgba(201,167,99,.42));
+}
+.subtitle{ margin-top:12px; font-size:14px; color:var(--muted); letter-spacing:.1em; line-height:1.7; }
+.panel-title{
+  font-family:'Cinzel',serif; font-weight:700; font-size:clamp(22px,3.4vw,32px);
+  letter-spacing:.14em; color:var(--gold-hi); text-transform:uppercase;
+}
+.panel-lead{ margin-top:14px; font-size:15px; color:var(--parch); line-height:1.85; }
+.panel-sub{ margin-top:8px; font-size:13px; color:var(--muted); line-height:1.8; }
+.section-label{
+  font-family:'Cinzel',serif; font-size:10px; letter-spacing:.3em;
+  text-transform:uppercase; color:var(--gold-lo); margin:26px 0 11px;
+}
+
+.menu-list{ display:flex; flex-direction:column; gap:12px; margin-top:30px; }
+.menu-list.row{ flex-direction:row; gap:14px; }
+.menu-list.row .menu-btn{ flex:1 1 0; padding:26px 12px; }
+.menu-btn{
+  position:relative; display:block; width:100%; padding:18px 24px;
+  background:linear-gradient(180deg,rgba(24,50,43,.7),rgba(6,15,13,.92));
+  border:1px solid rgba(201,167,99,.32); color:var(--parch);
+  font-family:'Gowun Batang','Noto Serif KR',serif; font-size:18px;
+  letter-spacing:.14em; cursor:pointer; text-align:center;
+  clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);
+  transition:all .18s ease;
+}
+.menu-btn .mb-sub{
+  display:block; margin-top:5px; font-family:'Cinzel',serif;
+  font-size:10px; letter-spacing:.24em; color:var(--dim); text-transform:uppercase;
+}
+.menu-btn:hover{
+  border-color:var(--gold-hi); color:var(--gold-hi);
+  background:linear-gradient(180deg,rgba(40,78,66,.8),rgba(9,22,18,.95));
+  transform:translateY(-2px); box-shadow:0 0 28px rgba(201,167,99,.3);
+}
+.menu-btn:hover .mb-sub{ color:var(--gold); }
+
+.btn-main{
+  margin-top:26px; padding:15px 46px;
+  background:linear-gradient(180deg,rgba(53,224,166,.14),rgba(7,17,15,.9));
+  border:1px solid var(--gold); color:var(--gold-hi);
+  font-family:'Cinzel',serif; font-weight:700; font-size:16px;
+  letter-spacing:.22em; text-transform:uppercase; cursor:pointer;
+  clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);
+  transition:all .2s ease;
+}
+.btn-main:hover:not(:disabled){
+  background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));
+  color:#05100d; box-shadow:0 0 34px rgba(201,167,99,.55); transform:translateY(-2px);
+}
+.btn-main:disabled{ opacity:.35; cursor:not-allowed; }
+.btn-ghost{
+  margin-top:14px; padding:10px 26px; background:transparent;
+  border:1px solid rgba(201,167,99,.28); color:var(--muted);
+  font-family:'Cinzel',serif; font-size:12px; letter-spacing:.2em;
+  text-transform:uppercase; cursor:pointer; transition:all .18s;
+}
+.btn-ghost:hover{ border-color:var(--gold); color:var(--parch); }
+.foot-hint{ margin-top:18px; font-size:11.5px; color:var(--dim); letter-spacing:.1em; line-height:1.7; }
+
+.code-block{
+  margin-top:20px; padding:18px;
+  background:rgba(4,11,9,.75); border:1px solid rgba(201,167,99,.24);
+}
+.code-block .cb-label{
+  font-family:'Cinzel',serif; font-size:10px; letter-spacing:.26em;
+  text-transform:uppercase; color:var(--gold-lo);
+}
+.code-block .cb-code{
+  margin-top:8px; font-family:'Cinzel',serif; font-weight:900;
+  font-size:clamp(28px,5vw,42px); letter-spacing:.3em; color:var(--gold-hi);
+  text-shadow:0 0 26px rgba(201,167,99,.5); user-select:text; cursor:pointer;
+}
+.code-block .cb-note{ margin-top:8px; font-size:11.5px; color:var(--dim); }
+.code-form{ margin-top:22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+#friendCode{
+  flex:1 1 220px; max-width:280px; padding:13px 16px;
+  background:linear-gradient(180deg,rgba(10,22,19,.95),rgba(4,10,9,.98));
+  border:1px solid rgba(201,167,99,.4); border-radius:0; outline:none;
+  color:var(--gold-hi); font-family:'Cinzel',serif; font-weight:700;
+  font-size:19px; letter-spacing:.24em; text-align:center; text-transform:uppercase;
+}
+#friendCode::placeholder{ font-family:'Gowun Batang',serif; font-weight:400; font-size:14px; letter-spacing:.1em; color:var(--dim); }
+#friendCode:focus{ border-color:var(--gold); box-shadow:0 0 22px rgba(201,167,99,.25); }
+.btn-inline{
+  padding:13px 26px; background:linear-gradient(180deg,rgba(53,224,166,.14),rgba(7,17,15,.9));
+  border:1px solid var(--gold); color:var(--gold-hi);
+  font-family:'Cinzel',serif; font-weight:700; font-size:13px;
+  letter-spacing:.18em; text-transform:uppercase; cursor:pointer; transition:all .18s;
+}
+.btn-inline:hover{ background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:#05100d; }
+.net-status{ margin-top:16px; font-size:13px; color:var(--muted); min-height:1.4em; letter-spacing:.04em; line-height:1.7; }
+.net-status.err{ color:#ff9186; }
+.net-status.ok{ color:var(--ally); }
+
+.room-grid{ margin-top:26px; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:16px; }
+.room-seat{ padding:20px 12px; background:rgba(4,11,9,.7); border:1px solid rgba(201,167,99,.22); }
+.room-seat .rs-role{
+  font-family:'Cinzel',serif; font-size:9.5px; letter-spacing:.24em;
+  text-transform:uppercase; color:var(--gold-lo);
+}
+.room-seat .rs-code{
+  margin-top:8px; font-family:'Cinzel',serif; font-weight:700;
+  font-size:24px; letter-spacing:.22em; color:var(--gold-hi);
+}
+.room-vs{ font-family:'Cinzel',serif; font-size:18px; letter-spacing:.14em; color:var(--gold-lo); }
+
+.orb-wrap{ margin:30px auto 0; width:190px; height:190px; position:relative; cursor:pointer; }
+.orb{
+  position:absolute; inset:0; border-radius:50%;
+  background:radial-gradient(circle at 36% 30%, rgba(190,255,228,.95), rgba(53,224,166,.55) 34%, rgba(14,107,82,.6) 62%, rgba(3,20,15,.95) 100%);
+  box-shadow:0 0 60px rgba(53,224,166,.45), inset 0 0 40px rgba(0,0,0,.6);
+  transition:transform .09s ease-out;
+}
+.orb-ring{
+  position:absolute; inset:-14px; border-radius:50%;
+  border:1px solid rgba(201,167,99,.4); animation:orbSpin 14s linear infinite;
+}
+.orb-ring::after{
+  content:''; position:absolute; top:-4px; left:50%; width:7px; height:7px;
+  margin-left:-3.5px; border-radius:50%; background:var(--gold-hi);
+  box-shadow:0 0 14px var(--gold-hi);
+}
+@keyframes orbSpin{ to{ transform:rotate(360deg) } }
+.orb-wrap:active .orb{ transform:scale(.93); }
+.orb-wrap.pulse .orb{ animation:orbPulse .4s ease-out; }
+@keyframes orbPulse{
+  0%{ box-shadow:0 0 60px rgba(53,224,166,.45), inset 0 0 40px rgba(0,0,0,.6) }
+  40%{ box-shadow:0 0 110px rgba(53,224,166,.95), inset 0 0 40px rgba(0,0,0,.4) }
+  100%{ box-shadow:0 0 60px rgba(53,224,166,.45), inset 0 0 40px rgba(0,0,0,.6) }
+}
+.energy-num{
+  margin-top:24px; font-family:'Cinzel',serif; font-weight:900;
+  font-size:40px; color:var(--gold-hi); letter-spacing:.06em;
+  text-shadow:0 0 26px rgba(201,167,99,.5);
+}
+.energy-label{
+  margin-top:5px; font-family:'Cinzel',serif; font-size:10px;
+  letter-spacing:.28em; text-transform:uppercase; color:var(--gold-lo);
+}
+.energy-bar{ margin-top:16px; height:7px; background:#050d0c; border:1px solid rgba(201,167,99,.24); overflow:hidden; }
+.energy-bar .efill{
+  height:100%; width:0;
+  background:linear-gradient(90deg,var(--ally-deep),var(--ally),var(--gold-hi));
+  box-shadow:0 0 14px rgba(53,224,166,.6); transition:width .2s ease;
+}
+.energy-goal{ margin-top:8px; font-size:12px; color:var(--dim); letter-spacing:.06em; }
+.spark-float{
+  position:absolute; left:50%; top:20%;
+  font-family:'Cinzel',serif; font-weight:700; font-size:18px; color:var(--gold-hi);
+  pointer-events:none; animation:dmgFloat .9s ease-out forwards;
+}
+
+.verdict{ font-family:'Cinzel',serif; font-weight:900; font-size:clamp(40px,8vw,82px); letter-spacing:.14em; line-height:1; }
+.verdict.win{
+  background:linear-gradient(180deg,#fdf3d9,var(--gold) 55%,#6f5828);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  filter:drop-shadow(0 0 34px rgba(201,167,99,.55));
+}
+.verdict.lose{ color:#8e3a33; text-shadow:0 0 30px rgba(232,73,60,.35); }
+.verdict-sub{ margin-top:10px; font-size:13.5px; color:var(--muted); letter-spacing:.08em; }
+.stats{
+  margin-top:26px; display:flex; flex-wrap:wrap;
+  border:1px solid rgba(201,167,99,.22); background:rgba(6,15,13,.92);
+}
+.stat{ flex:1 1 104px; padding:16px 8px; border-right:1px solid rgba(201,167,99,.16); }
+.stat:last-child{ border-right:0; }
+.stat .sv{ font-family:'Cinzel',serif; font-weight:700; font-size:26px; color:var(--gold-hi); line-height:1; }
+.stat .sv small{ font-size:12px; color:var(--muted); font-weight:500; margin-left:2px; }
+.stat .sl{ margin-top:7px; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); }
+
+/* searching for an opponent */
+.seek-ring{
+  margin:34px auto 0; width:120px; height:120px; position:relative;
+}
+.seek-ring i{
+  position:absolute; inset:0; border-radius:50%;
+  border:1px solid rgba(201,167,99,.25);
+}
+.seek-ring i:nth-child(1){ border-top-color:var(--gold-hi); animation:seekSpin 1.5s linear infinite; }
+.seek-ring i:nth-child(2){ inset:16px; border-bottom-color:var(--ally); animation:seekSpin 2.2s linear infinite reverse; }
+.seek-ring i:nth-child(3){ inset:32px; border-left-color:var(--gold); animation:seekSpin 3s linear infinite; }
+@keyframes seekSpin{ to{ transform:rotate(360deg) } }
+.seek-count{
+  position:absolute; inset:0; display:grid; place-items:center;
+  font-family:'Cinzel',serif; font-weight:900; font-size:34px; color:var(--gold-hi);
+}
+
+@media (max-width:640px){
+  .menu-list.row{ flex-direction:column; }
+  .menu-list.row .menu-btn{ padding:18px 24px; }
+  .hud{ grid-template-columns:1fr 1fr; }
+  .round-pill{ grid-column:1/-1; order:-1; }
+  .sigil{ width:56px; height:64px; }
+  .tname{ flex-basis:54px; }
+  #langBar{ top:12px; right:12px; padding:6px 10px; }
+  .room-grid{ grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ BACKDROP ============ -->
+<div id="backdrop">
+  <div class="bg-base"></div>
+  <div class="fog"></div>
+  <div class="fog b"></div>
+  <div class="canopy">
+    <svg class="tl" viewBox="0 0 400 300" aria-hidden="true">
+      <g fill="#03100c">
+        <path d="M0 0 C70 10 120 46 152 104 C170 138 176 176 168 214 C150 176 128 150 96 132 C124 176 132 216 122 258 C100 212 74 182 40 164 C60 200 66 232 60 266 C36 214 12 178 -20 156 Z"/>
+        <path d="M0 40 C58 56 100 92 124 142 C96 120 66 108 34 106 C60 132 74 158 78 188 C50 152 24 132 -10 124 Z" opacity=".75"/>
+      </g>
+      <g stroke="#0d3a2c" stroke-width="2" fill="none" opacity=".7">
+        <path d="M0 6 C74 18 126 58 156 118"/><path d="M0 46 C60 62 104 100 128 150"/>
+      </g>
+    </svg>
+    <svg class="tr" viewBox="0 0 400 300" aria-hidden="true">
+      <g fill="#03100c"><path d="M0 0 C88 6 150 44 186 116 C204 152 208 192 198 230 C176 188 150 160 114 142 C144 190 150 232 138 274 C114 226 86 194 48 176 C70 214 76 246 70 278 C44 224 18 188 -16 166 Z"/></g>
+      <g stroke="#0d3a2c" stroke-width="2" fill="none" opacity=".6"><path d="M0 4 C90 16 150 60 186 128"/></g>
+    </svg>
+    <svg class="bl" viewBox="0 0 400 300" aria-hidden="true">
+      <g fill="#02100b"><path d="M0 0 C80 14 136 54 168 118 C184 150 188 186 180 220 C160 180 136 154 102 136 C130 182 136 222 126 262 C102 216 76 186 40 168 C60 204 66 236 60 268 C34 216 10 180 -22 158 Z"/></g>
+    </svg>
+    <svg class="br" viewBox="0 0 400 300" aria-hidden="true">
+      <g fill="#02100b"><path d="M0 0 C76 12 130 52 160 112 C176 144 180 180 172 214 C152 174 128 150 96 132 C122 178 128 216 118 254 C96 210 70 182 36 164 C56 200 62 230 56 262 C32 212 8 178 -24 156 Z"/></g>
+    </svg>
+  </div>
+  <div class="spores" id="spores"></div>
+  <div class="vignette"></div>
+</div>
+
+<!-- ============ LANGUAGE ============ -->
+<div id="langBar">
+  <span class="lb-label">언어 / Language</span>
+  <select id="langSelect" aria-label="언어 / Language">
+    <option value="ko">한국어</option>
+    <option value="en">English</option>
+  </select>
+</div>
+
+<!-- ============ BATTLE STAGE ============ -->
+<div id="stage" hidden>
+  <header class="hud">
+    <div class="fighter ally">
+      <div class="sigil" id="sigilAlly">
+        <svg viewBox="0 0 80 90">
+          <defs><linearGradient id="gAlly" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#5cf5c0"/><stop offset="1" stop-color="#0c5a45"/>
+          </linearGradient></defs>
+          <path d="M40 2 76 22 76 68 40 88 4 68 4 22Z" fill="#071a16" stroke="#c9a763" stroke-width="1.6"/>
+          <path d="M40 9 69 25 69 65 40 81 11 65 11 25Z" fill="none" stroke="#7e6634" stroke-width=".9"/>
+          <path d="M40 20 L40 70 M28 34 L40 22 L52 34 M31 58 L49 58" stroke="url(#gAlly)" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+          <circle cx="40" cy="45" r="7" fill="none" stroke="#35e0a6" stroke-width="1.4" opacity=".8"/>
+        </svg>
+      </div>
+      <div class="fbody">
+        <div class="fname" id="allyName">방랑 검객</div>
+        <div class="ftitle" id="allyTitle">그대</div>
+        <div class="bar-wrap">
+          <div class="bar">
+            <div class="ghost" id="ghostAlly"></div><div class="fill" id="hpAlly"></div>
+            <div class="sheen"></div><div class="hpnum" id="hpNumAlly">100 / 100</div>
+          </div>
+          <div class="rage" id="rageAlly"><div class="rfill" id="rageFillAlly"></div></div>
+          <div class="rage-label" id="rageLabelAlly">기세</div>
+          <div class="buffs" id="buffAlly"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="round-pill">
+      <div class="rlabel" id="roundLabel">Round</div>
+      <div class="rnum" id="roundNum">1</div>
+      <div class="rmode" id="modeLabel"></div>
+      <div class="rsets" id="setScore" hidden></div>
+      <div class="rseek" id="seekFlag" hidden></div>
+    </div>
+
+    <div class="fighter foe">
+      <div class="sigil" id="sigilFoe">
+        <svg viewBox="0 0 80 90">
+          <defs><linearGradient id="gFoe" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ff8a7d"/><stop offset="1" stop-color="#6d1a14"/>
+          </linearGradient></defs>
+          <path d="M40 2 76 22 76 68 40 88 4 68 4 22Z" fill="#1a0806" stroke="#c9a763" stroke-width="1.6"/>
+          <path d="M40 9 69 25 69 65 40 81 11 65 11 25Z" fill="none" stroke="#7e6634" stroke-width=".9"/>
+          <path d="M22 26 C34 42 34 56 26 70 M40 22 C52 40 52 58 42 74 M58 28 C68 44 66 58 58 70"
+                stroke="url(#gFoe)" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+          <circle cx="40" cy="45" r="9" fill="none" stroke="#e8493c" stroke-width="1.2" opacity=".55"/>
+        </svg>
+      </div>
+      <div class="fbody">
+        <div class="fname" id="foeName">덩굴숲 추적자</div>
+        <div class="ftitle" id="foeTitle">적</div>
+        <div class="bar-wrap">
+          <div class="bar">
+            <div class="ghost" id="ghostFoe"></div><div class="fill" id="hpFoe"></div>
+            <div class="sheen"></div><div class="hpnum" id="hpNumFoe">100 / 100</div>
+          </div>
+          <div class="rage" id="rageFoe"><div class="rfill" id="rageFillFoe"></div></div>
+          <div class="rage-label" id="rageLabelFoe">기세</div>
+          <div class="buffs" id="buffFoe"></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="arena">
+    <div class="word-frame">
+      <div class="word-kicker" id="wordKicker">Incantation</div>
+      <div class="word" id="wordBox"></div>
+      <div class="word-hint" id="wordHint"></div>
+    </div>
+    <div class="tracks">
+      <div class="trow ally"><div class="tname" id="tnameAlly">You</div><div class="track"><div class="tfill" id="trackAlly"></div></div></div>
+      <div class="trow foe"><div class="track"><div class="tfill" id="trackFoe"></div></div><div class="tname" id="tnameFoe">Rival</div></div>
+    </div>
+    <div class="input-shell">
+      <div class="combo-chip" id="comboChip"></div>
+      <input id="typeInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" autocorrect="off">
+      <div class="input-state">
+        <span class="st-chip" id="capsChip" hidden><span class="v" id="capsChipV">CAPS LOCK</span></span>
+      </div>
+      <div class="ime-note" id="imeNote"></div>
+    </div>
+  </main>
+
+  <hr class="rule">
+</div>
+
+<div class="exit-hint" id="exitHint" hidden></div>
+
+<div id="fx"></div>
+
+<!-- ============ UI OVERLAY ============ -->
+<div id="ui">
+
+  <div class="panel" id="v-menu">
+    <div class="crest">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <defs><linearGradient id="gCrest" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fdf3d9"/><stop offset=".55" stop-color="#c9a763"/><stop offset="1" stop-color="#6f5828"/>
+        </linearGradient></defs>
+        <path d="M50 4 92 26 92 70 50 96 8 70 8 26Z" fill="#07160f" stroke="url(#gCrest)" stroke-width="2"/>
+        <path d="M50 12 84 30 84 66 50 88 16 66 16 30Z" fill="none" stroke="#7e6634" stroke-width=".8"/>
+        <path d="M50 24 L50 74" stroke="url(#gCrest)" stroke-width="4" stroke-linecap="round"/>
+        <path d="M34 40 L50 26 L66 40" stroke="url(#gCrest)" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+        <path d="M36 62 L64 62" stroke="url(#gCrest)" stroke-width="3.4" stroke-linecap="round"/>
+        <circle cx="50" cy="50" r="11" fill="none" stroke="#35e0a6" stroke-width="1.4" opacity=".75"/>
+      </svg>
+    </div>
+    <h1 class="title">KEYBOARD WAR</h1>
+    <p class="subtitle" id="mTagline">두 손이 무기다. 정글의 구절을 먼저 베어라.</p>
+    <div class="menu-list row">
+      <button class="menu-btn" id="btnRanked"><span id="mRanked">랭킹전</span><span class="mb-sub">Ranked</span></button>
+      <button class="menu-btn" id="btnVersus"><span id="mVersus">대전</span><span class="mb-sub">Versus</span></button>
+      <button class="menu-btn" id="btnStory"><span id="mStory">스토리</span><span class="mb-sub">Story</span></button>
+    </div>
+    <p class="foot-hint" id="mHint">우측 상단에서 언어를 바꿀 수 있습니다.</p>
+  </div>
+
+  <div class="panel" id="v-ranked" hidden>
+    <div class="panel-title" id="rkTitle">랭킹전</div>
+    <p class="panel-lead" id="rkLead">아직 대전 기간이 아니에요.</p>
+    <p class="panel-sub" id="rkSub">시즌이 열리면 여기에서 순위를 겨루게 됩니다.</p>
+    <button class="btn-ghost" data-back id="rkBack">돌아가기</button>
+  </div>
+
+  <div class="panel" id="v-story" hidden>
+    <div class="panel-title" id="stTitle">스토리</div>
+    <p class="panel-lead" id="stLead">우주가 아직 생성되지 않았어요.</p>
+    <p class="panel-sub" id="stSub">힘을 모아주세요. 기운이 충분히 쌓이면 첫 번째 별이 태어납니다.</p>
+    <div class="orb-wrap" id="orbWrap">
+      <div class="orb-ring"></div>
+      <div class="orb"></div>
+    </div>
+    <div class="energy-num" id="energyNum">0</div>
+    <div class="energy-label" id="energyLabel">모인 기운</div>
+    <div class="energy-bar"><div class="efill" id="energyFill"></div></div>
+    <div class="energy-goal" id="energyGoal"></div>
+    <button class="btn-ghost" data-back id="stBack">돌아가기</button>
+  </div>
+
+  <div class="panel" id="v-versus" hidden>
+    <div class="panel-title" id="vsTitle">대전</div>
+    <p class="panel-lead" id="vsLead">상대를 고르세요.</p>
+    <div class="menu-list">
+      <button class="menu-btn" id="btnRandom"><span id="vsRandom">랜덤</span><span class="mb-sub">Random — vs Bot</span></button>
+      <button class="menu-btn" id="btnFriend"><span id="vsFriend">친구와 함께하기</span><span class="mb-sub">Play with a friend</span></button>
+    </div>
+    <button class="btn-ghost" data-back id="vsBack">돌아가기</button>
+  </div>
+
+  <div class="panel" id="v-search" hidden>
+    <div class="panel-title" id="skTitle">랜덤 대전</div>
+    <p class="panel-lead" id="skLead">상대를 찾는 중…</p>
+    <div class="seek-ring"><i></i><i></i><i></i><div class="seek-count" id="searchCount">5</div></div>
+    <div class="net-status" id="searchStatus"></div>
+    <button class="btn-ghost" id="skCancel">취소</button>
+  </div>
+
+  <div class="panel" id="v-handoff" hidden>
+    <div class="panel-title" id="hoTitle">상대를 찾았습니다</div>
+    <p class="panel-lead" id="hoLead">실제 상대와의 대전이 곧 시작됩니다.</p>
+    <div class="handoff-num" id="handoffCount"><span>3</span></div>
+    <div class="room-grid">
+      <div class="room-seat"><div class="rs-role" id="hoYou">그대</div><div class="rs-code" id="hoMyCode">------</div></div>
+      <div class="room-vs">VS</div>
+      <div class="room-seat"><div class="rs-role" id="hoThem">상대</div><div class="rs-code" id="hoPeerCode">------</div></div>
+    </div>
+  </div>
+
+  <div class="panel" id="v-friend" hidden>
+    <div class="panel-title" id="frTitle">친구와 함께하기</div>
+    <div class="code-block">
+      <div class="cb-label" id="frMyLabel">내 고유번호</div>
+      <div class="cb-code" id="myCode">------</div>
+      <div class="cb-note" id="frMyNote">이 번호를 친구에게 알려주세요. 클릭하면 복사됩니다.</div>
+    </div>
+    <div class="section-label" id="frEnterLabel">친구 고유번호 입력</div>
+    <div class="code-form">
+      <input id="friendCode" type="text" maxlength="6" autocomplete="off" spellcheck="false" placeholder="예: K7X2M9">
+      <button class="btn-inline" id="btnConnect">확인</button>
+    </div>
+    <div class="net-status" id="netStatus"></div>
+    <button class="btn-ghost" data-back id="frBack">돌아가기</button>
+  </div>
+
+  <div class="panel" id="v-room" hidden>
+    <div class="panel-title" id="rmTitle">대기실</div>
+    <p class="panel-lead" id="rmLead">둘 다 준비되면 시작하세요.</p>
+    <div class="room-grid">
+      <div class="room-seat"><div class="rs-role" id="rmYou">그대</div><div class="rs-code" id="rmMyCode">------</div></div>
+      <div class="room-vs">VS</div>
+      <div class="room-seat"><div class="rs-role" id="rmFriend">친구</div><div class="rs-code" id="rmPeerCode">------</div></div>
+    </div>
+    <div class="net-status ok" id="roomStatus"></div>
+    <button class="btn-main" id="btnRoomStart">시작</button><br>
+    <button class="btn-ghost" id="btnRoomLeave">나가기</button>
+  </div>
+
+  <div class="panel" id="v-result" hidden>
+    <div class="verdict" id="verdict">VICTORY</div>
+    <p class="verdict-sub" id="verdictSub"></p>
+    <div class="stats">
+      <div class="stat"><div class="sv" id="stSpeed">0</div><div class="sl" id="stSpeedL">Speed</div></div>
+      <div class="stat"><div class="sv" id="stAcc">0</div><div class="sl" id="stAccL">Accuracy</div></div>
+      <div class="stat"><div class="sv" id="stCombo">0</div><div class="sl" id="stComboL">Best combo</div></div>
+      <div class="stat"><div class="sv" id="stRounds">0</div><div class="sl" id="stRoundsL">Rounds</div></div>
+      <div class="stat"><div class="sv" id="stHp">0</div><div class="sl" id="stHpL">HP left</div></div>
+    </div>
+    <button class="btn-main" id="againBtn">재도전</button><br>
+    <button class="btn-ghost" id="toMenuBtn">메뉴로</button>
+    <p class="foot-hint" id="resultHint">Enter 로 재도전</p>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   1. HANGUL JAMO ENGINE
+   Korean arrives through an IME as composing syllables
+   (ㅈ → 저 → 정). A plain string prefix check would flag every
+   composition step as a typo, so both target and input are
+   flattened to a jamo sequence and compared there. ASCII passes
+   through untouched, so ko and en share one code path.
+   ============================================================ */
+
+const CHO  = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+const JUNG = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'];
+const JONG = ['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+const SPLIT = {
+  'ㅘ':['ㅗ','ㅏ'],'ㅙ':['ㅗ','ㅐ'],'ㅚ':['ㅗ','ㅣ'],
+  'ㅝ':['ㅜ','ㅓ'],'ㅞ':['ㅜ','ㅔ'],'ㅟ':['ㅜ','ㅣ'],'ㅢ':['ㅡ','ㅣ'],
+  'ㄳ':['ㄱ','ㅅ'],'ㄵ':['ㄴ','ㅈ'],'ㄶ':['ㄴ','ㅎ'],
+  'ㄺ':['ㄹ','ㄱ'],'ㄻ':['ㄹ','ㅁ'],'ㄼ':['ㄹ','ㅂ'],'ㄽ':['ㄹ','ㅅ'],
+  'ㄾ':['ㄹ','ㅌ'],'ㄿ':['ㄹ','ㅍ'],'ㅀ':['ㄹ','ㅎ'],'ㅄ':['ㅂ','ㅅ']
+};
+function pushJamo(out, j){ const s = SPLIT[j]; if (s) out.push(s[0], s[1]); else out.push(j); }
+function decompose(str){
+  const out = [];
+  for (const ch of str){
+    const c = ch.charCodeAt(0);
+    if (c >= 0xAC00 && c <= 0xD7A3){
+      const i = c - 0xAC00;
+      pushJamo(out, CHO[Math.floor(i / 588)]);
+      pushJamo(out, JUNG[Math.floor((i % 588) / 28)]);
+      const jo = i % 28;
+      if (jo) pushJamo(out, JONG[jo]);
+    } else if (c >= 0x3131 && c <= 0x318E){
+      pushJamo(out, ch);
+    } else out.push(ch);
+  }
+  return out;
+}
+function matchLen(a, b){
+  let i = 0; const n = Math.min(a.length, b.length);
+  while (i < n && a[i] === b[i]) i++;
+  return i;
+}
+
+/* ============================================================
+   2. STORAGE (file:// safe — every access guarded)
+   ============================================================ */
+const LS = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+
+/* ============================================================
+   3. CONTENT — bilingual word pool, paired so the opposite
+   language doubles as the hint
+   ============================================================ */
+const POOL = {
+  1: [
+    ['정글','jungle'],['검객','blade'],['야수','beast'],['늪지','swamp'],
+    ['협곡','canyon'],['폐허','ruins'],['주문','spell'],['방패','shield'],
+    ['창날','spear'],['불꽃','flame'],['서리','frost'],['번개','bolt'],
+    ['균열','rift'],['사냥','hunt'],['맹독','venom'],['그늘','shade'],
+    ['광휘','radiance'],['전조','omen'],['맹세','oath'],['각인','sigil'],
+    ['강철','steel'],['재앙','ruin'],['질주','sprint'],['고요','silence']
+  ],
+  2: [
+    ['수호자','guardian'],['파괴자','destroyer'],['정찰병','scout'],
+    ['대장간','forge'],['나침반','compass'],['고대목','elderwood'],
+    ['운명석','fatestone'],['심연부','abyss'],['유적지','relicsite'],
+    ['마력석','manastone'],['야영지','campsite'],['추적자','tracker'],
+    ['약초꾼','herbalist'],['덩굴숲','vinewood'],['안개골','mistvale'],
+    ['모험가','wanderer'],['절벽길','cliffpath'],['보름달','fullmoon'],
+    ['맹수떼','beasts'],['야행성','nocturnal']
+  ],
+  3: [
+    ['잊혀진 신전','forgotten temple'],['심연의 문','abyssal gate'],
+    ['태양의 검','solar blade'],['정글 사냥꾼','jungle hunter'],
+    ['고대의 맹세','ancient oath'],['폭풍의 눈','eye of storm'],
+    ['서리 송곳니','frost fang'],['용의 둥지','dragon nest'],
+    ['달빛 사냥','moonlit hunt'],['불멸의 심장','immortal heart'],
+    ['황금 나침반','golden compass'],['그림자 군단','shadow legion'],
+    ['덩굴의 주인','lord of vines'],['재의 협곡','ashen canyon']
+  ]
+};
+
+const BOT_NAMES = {
+  ko: ['늪지 순찰자','덩굴숲 추적자','재의 협곡 군주'],
+  en: ['Swamp Patrol','Vinewood Tracker','Warlord of Ashes']
+};
+
+/* ============================================================
+   4. i18n — UI language (independent of the words' language)
+   ============================================================ */
+const T = {
+  ko: {
+    tagline:'두 손이 무기다. 정글의 구절을 먼저 베어라.',
+    ranked:'랭킹전', versus:'대전', story:'스토리',
+    menuHint:'우측 상단에서 언어를 바꿀 수 있습니다.',
+    rkTitle:'랭킹전', rkLead:'아직 대전 기간이 아니에요.',
+    rkSub:'시즌이 열리면 여기에서 순위를 겨루게 됩니다.',
+    stTitle:'스토리', stLead:'우주가 아직 생성되지 않았어요.',
+    stSub:'힘을 모아주세요. 기운이 충분히 쌓이면 첫 번째 별이 태어납니다.',
+    energyLabel:'모인 기운',
+    energyGoal:(n,g) => '첫 별까지 ' + (g - n).toLocaleString() + ' 남음',
+    energyDone:'첫 번째 별이 깨어나고 있습니다.',
+    vsTitle:'대전', vsLead:'상대를 고르세요.',
+    vsRandom:'랜덤', vsFriend:'친구와 함께하기',
+    frTitle:'친구와 함께하기', frMyLabel:'내 고유번호',
+    frMyNote:'이 번호를 친구에게 알려주세요. 클릭하면 복사됩니다.',
+    frEnterLabel:'친구 고유번호 입력', frPlaceholder:'예: K7X2M9',
+    confirm:'확인', back:'돌아가기', leave:'나가기', startBtn:'시작',
+    rmTitle:'대기실', rmLead:'둘 다 준비되면 시작하세요.',
+    rmYou:'그대', rmFriend:'친구',
+    botTag:'봇', modeRandom:'랜덤 대전',
+    skTitle:'랜덤 대전', skLead:'상대를 찾는 중…', cancel:'취소',
+    skFound:'상대를 찾았습니다.',
+    skRematchAsk:'직전 상대에게 재대결을 청하는 중…',
+    hoTitle:'상대를 찾았습니다', hoLead:'실제 상대와의 대전이 곧 시작됩니다.',
+    hoYou:'그대', hoThem:'상대',
+    setWin:'세트 승리', setLose:'세트 패배',
+    seekFlag:'대기자 탐색 중…', exitHint:'Esc 로 나가기',
+    skRematchGo:'같은 상대와 다시 맞붙습니다.',
+    rematchAsked:'상대가 재대결을 청했습니다 — 곧 시작합니다',
+    skNone:'접속 중인 상대가 없어 봇과 대전합니다.',
+    netSelf:'자기 번호는 입력할 수 없어요.',
+    netBad:'6자리 번호를 입력해주세요.',
+    netSearching:'친구를 찾는 중…',
+    netNone:'그 번호로 접속한 친구를 찾지 못했어요. 친구가 같은 페이지를 열어둔 상태인지 확인해주세요.',
+    netJoined:'연결되었습니다.',
+    netLeft:'친구가 나갔습니다.',
+    roomHost:'방장이라 시작 버튼을 누를 수 있어요.',
+    roomGuest:'친구가 시작하기를 기다리는 중…',
+    copied:'복사했습니다.',
+    allyName:'방랑 검객', allyTitle:'그대', foeTitle:'적',
+    rage:'기세', round:'라운드', you:'그대', rival:'적',
+    placeholder:'여기에 입력하여 베어라',
+    modeBot:(lv) => '봇 Lv.' + lv, modeFriend:'친구 대전',
+    wordKoTag:'한국어', wordEnTag:'English',
+    imeKo:'한글 입력 상태에서 진행하세요 · 한/영 키로 전환',
+    imeEn:'영문 입력 상태에서 진행하세요 · 한/영 키로 전환',
+    capsOn:'CAPS LOCK',
+    capsWarn:'Caps Lock 이 켜져 있습니다 — 꺼주세요',
+    potAtk:'공격력 포션', potHeal:'회복 포션',
+    buffAtk:n => '공격 ×1.5 · ' + n,
+    supply:'보 급',
+    speedUnit:'타/분',
+    win:'VICTORY', lose:'DEFEAT', forfeit:'기권승',
+    winSub:'내가 이겼다!', loseSub:'힝 졌당..',
+    forfeitSub:'상대가 줄행랑을 쳤습니다. 당신의 포스가 대단합니다.',
+    hitGood:'격파', hitBad:'피격', ult:'필살', countGo:'개전',
+    comboFmt:n => n + ' 연격',
+    stSpeedL:'타속', stAccL:'정확도', stComboL:'최고 연격', stRoundsL:'교전 수', stHpL:'남은 생명',
+    again:'재도전', toMenu:'메뉴로', resultHint:'Enter 로 재도전 · Esc 로 메뉴'
+  },
+  en: {
+    tagline:'Your hands are the weapon. Cut the jungle’s words first.',
+    ranked:'Ranked', versus:'Versus', story:'Story',
+    menuHint:'Change the language from the top right.',
+    rkTitle:'Ranked', rkLead:'The season hasn’t opened yet.',
+    rkSub:'Standings will be contested here once it does.',
+    stTitle:'Story', stLead:'The universe hasn’t been created yet.',
+    stSub:'Lend your strength. When enough gathers, the first star is born.',
+    energyLabel:'Energy gathered',
+    energyGoal:(n,g) => (g - n).toLocaleString() + ' to the first star',
+    energyDone:'The first star is waking.',
+    vsTitle:'Versus', vsLead:'Choose your opponent.',
+    vsRandom:'Random', vsFriend:'Play with a friend',
+    frTitle:'Play with a friend', frMyLabel:'Your code',
+    frMyNote:'Share this with your friend. Click to copy.',
+    frEnterLabel:'Enter your friend’s code', frPlaceholder:'e.g. K7X2M9',
+    confirm:'Connect', back:'Back', leave:'Leave', startBtn:'Start',
+    rmTitle:'Lobby', rmLead:'Start once you’re both ready.',
+    rmYou:'You', rmFriend:'Friend',
+    botTag:'BOT', modeRandom:'Random match',
+    skTitle:'Random match', skLead:'Looking for an opponent\u2026', cancel:'Cancel',
+    skFound:'Opponent found.',
+    skRematchAsk:'Asking your last opponent for a rematch\u2026',
+    hoTitle:'Opponent found', hoLead:'A live match begins in a moment.',
+    hoYou:'You', hoThem:'Rival',
+    setWin:'SET WON', setLose:'SET LOST',
+    seekFlag:'looking for players\u2026', exitHint:'Esc to leave',
+    skRematchGo:'Facing the same opponent again.',
+    rematchAsked:'Your opponent wants a rematch \u2014 starting shortly',
+    skNone:'Nobody is online right now — you\u2019ll face a bot.',
+    netSelf:'That’s your own code.',
+    netBad:'Enter a 6-character code.',
+    netSearching:'Looking for your friend…',
+    netNone:'No friend found with that code. Make sure they have this page open.',
+    netJoined:'Connected.',
+    netLeft:'Your friend left.',
+    roomHost:'You’re the host — press Start when ready.',
+    roomGuest:'Waiting for your friend to start…',
+    copied:'Copied.',
+    allyName:'Wandering Blade', allyTitle:'You', foeTitle:'Rival',
+    rage:'Rage', round:'Round', you:'You', rival:'Rival',
+    placeholder:'Type here to strike',
+    modeBot:(lv) => 'Bot Lv.' + lv, modeFriend:'Friend match',
+    wordKoTag:'Korean', wordEnTag:'English',
+    imeKo:'Switch your IME to Korean',
+    imeEn:'Type in English',
+    capsOn:'CAPS LOCK',
+    capsWarn:'Caps Lock is on \u2014 turn it off',
+    potAtk:'Power potion', potHeal:'Healing potion',
+    buffAtk:n => 'ATK \u00d71.5 \u00b7 ' + n,
+    supply:'SUPPLY',
+    speedUnit:'wpm',
+    win:'VICTORY', lose:'DEFEAT', forfeit:'WIN BY FORFEIT',
+    winSub:'I won!', loseSub:'Aww, I lost\u2026',
+    forfeitSub:'Your rival turned tail and fled. That presence of yours is fearsome.',
+    hitGood:'STRIKE', hitBad:'STRUCK', ult:'FINISHER', countGo:'FIGHT',
+    comboFmt:n => n + 'x combo',
+    stSpeedL:'Speed', stAccL:'Accuracy', stComboL:'Best combo', stRoundsL:'Exchanges', stHpL:'HP left',
+    again:'Fight Again', toMenu:'Menu', resultHint:'Enter to fight again · Esc for menu'
+  }
+};
+
+/* ============================================================
+   5. BALANCE — bot level 1..10, adaptive
+   ============================================================ */
+const MAX_HP = 100;
+const START_LV = 5;
+const ADJUST_EVERY = 2;
+const ENERGY_GOAL = 10000;
+
+function botCps(lv, wordLang){
+  return wordLang === 'ko' ? 1.70 + lv * 0.55 : 1.35 + lv * 0.44;
+}
+function botDelay(lv){
+  const base = 760 - lv * 52;
+  return [Math.max(110, base - 110), Math.max(190, base + 110)];
+}
+
+/* ============================================================
+   6. STATE
+   ============================================================ */
+const S = {
+  uiLang:'ko', view:'menu',
+  mode:'bot', phase:'menu',
+  matchKind:'random',      // 'random' | 'friend' — only labels differ
+  isHost:false, peer:null, seeking:false, seekTimer:0, seekLeft:0,
+  rematchPeer:null, rematchReady:false, awaitingRematch:null,
+  bgSeek:false, bgTimer:0, hoTimer:0, sets:{ ally:0, foe:0 },
+  round:0,
+  botLv:START_LV, recent:[],
+  ally:{ hp:MAX_HP, rage:0, atk:0 }, foe:{ hp:MAX_HP, rage:0, atk:0 },
+  word:'', hint:'', wordLang:'ko', target:[], cum:[0],
+  typed:[], errFlag:false, perfect:true,
+  roundT0:0, foeDelay:0, foeCps:0, foeProg:0, lastSent:0,
+  combo:0, bestCombo:0, exchanges:0,
+  strokes:0, errors:0, units:0, timeMs:0,
+  raf:0, timers:[], energy:0, doneSent:false,
+  caps:false, capsKnown:false,
+  foeCombo:0
+};
+function clearTimers(){ S.timers.forEach(clearTimeout); S.timers = []; }
+function later(fn, ms){ const id = setTimeout(fn, ms); S.timers.push(id); return id; }
+
+/* ============================================================
+   7. DOM
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const el = {
+  ui:$('ui'), stage:$('stage'), fx:$('fx'), langSelect:$('langSelect'), langBar:$('langBar'),
+  word:$('wordBox'), hint:$('wordHint'), kicker:$('wordKicker'),
+  input:$('typeInput'), imeNote:$('imeNote'), comboChip:$('comboChip'),
+  capsChip:$('capsChip'), capsChipV:$('capsChipV'),
+  buffAlly:$('buffAlly'), buffFoe:$('buffFoe'),
+  roundNum:$('roundNum'), roundLabel:$('roundLabel'), modeLabel:$('modeLabel'),
+  setScore:$('setScore'), seekFlag:$('seekFlag'), exitHint:$('exitHint'),
+  allyName:$('allyName'), allyTitle:$('allyTitle'),
+  foeName:$('foeName'), foeTitle:$('foeTitle'),
+  hpAlly:$('hpAlly'), hpFoe:$('hpFoe'), ghostAlly:$('ghostAlly'), ghostFoe:$('ghostFoe'),
+  hpNumAlly:$('hpNumAlly'), hpNumFoe:$('hpNumFoe'),
+  rageAlly:$('rageAlly'), rageFoe:$('rageFoe'),
+  rageFillAlly:$('rageFillAlly'), rageFillFoe:$('rageFillFoe'),
+  rageLabelAlly:$('rageLabelAlly'), rageLabelFoe:$('rageLabelFoe'),
+  trackAlly:$('trackAlly'), trackFoe:$('trackFoe'),
+  tnameAlly:$('tnameAlly'), tnameFoe:$('tnameFoe'),
+  sigilAlly:$('sigilAlly'), sigilFoe:$('sigilFoe'),
+  myCode:$('myCode'), friendCode:$('friendCode'), netStatus:$('netStatus'),
+  rmMyCode:$('rmMyCode'), rmPeerCode:$('rmPeerCode'), roomStatus:$('roomStatus'),
+  btnRoomStart:$('btnRoomStart'),
+  orbWrap:$('orbWrap'), energyNum:$('energyNum'), energyFill:$('energyFill'), energyGoal:$('energyGoal'),
+  verdict:$('verdict'), verdictSub:$('verdictSub'),
+  stSpeed:$('stSpeed'), stAcc:$('stAcc'), stCombo:$('stCombo'), stRounds:$('stRounds'), stHp:$('stHp'),
+  spores:$('spores')
+};
+const t = () => T[S.uiLang];
+
+/* ============================================================
+   8. AMBIENCE
+   ============================================================ */
+(function spores(){
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < 26; i++){
+    const d = document.createElement('div');
+    d.className = 'spore';
+    d.style.left = (Math.random() * 100) + '%';
+    d.style.bottom = '-4vh';
+    d.style.setProperty('--dx', (Math.random() * 90 - 45) + 'px');
+    d.style.animationDuration = (16 + Math.random() * 22) + 's';
+    d.style.animationDelay = (-Math.random() * 30) + 's';
+    d.style.opacity = .3 + Math.random() * .5;
+    const sc = .6 + Math.random() * 1.1;
+    d.style.width = d.style.height = (3 * sc).toFixed(1) + 'px';
+    frag.appendChild(d);
+  }
+  el.spores.appendChild(frag);
+})();
+
+/* ============================================================
+   9. NETWORK — friend matching
+   Transport: a localStorage bus (works across tabs, and on
+   file://) plus BroadcastChannel where available. This is
+   replaced by Supabase Realtime in v1.0 for cross-device play.
+   ============================================================ */
+const BUS = 'kw_bus';
+function genCode(){
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < 6; i++) s += A[Math.floor(Math.random() * A.length)];
+  return s;
+}
+/* The code lives in sessionStorage, not localStorage: it has to be
+   unique PER TAB, otherwise two tabs of the same browser would hand
+   out the same number and could never find each other. It survives a
+   reload of that tab. A stable account-wide id arrives with logins. */
+const SS = {
+  get(k, d){ try{ const v = sessionStorage.getItem(k); return v == null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ sessionStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const MYCODE = (function(){
+  let c = SS.get('kw_code', null);
+  if (!c || typeof c !== 'string' || c.length !== 6){ c = genCode(); SS.set('kw_code', c); }
+  return c;
+})();
+
+const PROG = 'kw_prog_';   // live progress: one key per sender, overwritten
+const ALIVE_MS = 12000;    // a heartbeat this fresh means the peer is still there
+const LOST_MS  = 4000;     // ... and it has to stay stale this long to count as gone
+const SEEN_MAX = 150;      // dedupe entries kept before pruning by age
+const SEEN_TTL = 45000;    // older than this cannot still be in the bus
+
+const Net = {
+  bc:null, seen:new Map(), timer:0, running:false,
+  lostAt:0, since:0, lastHeard:0, lastProgTs:0,
+
+  start(){
+    if (this.running) return;
+    this.running = true;
+    this.mark();
+    try{
+      this.bc = new BroadcastChannel('keyboard_war');
+      this.bc.onmessage = e => this.accept(e.data);
+    }catch(err){ this.bc = null; }
+    this.beat();
+    this.timer = setInterval(() => this.beat(), 140);
+  },
+
+  stop(){
+    this.running = false;
+    clearInterval(this.timer);
+    try{ if (this.bc) this.bc.close(); }catch(e){}
+    this.bc = null;
+    this.lostAt = 0;
+  },
+
+  /* Anything stamped before this moment belongs to an earlier context
+     and must never be acted on. */
+  mark(){
+    const now = Date.now();
+    this.since = now; this.lastHeard = now; this.lostAt = 0; this.lastProgTs = 0;
+  },
+
+  beat(){
+    const now = Date.now();
+    LS.set('kw_p_' + MYCODE, now);
+
+    const arr = LS.get(BUS, []);
+    for (const m of arr) this.accept(m);
+    this.prune(now);
+    this.pullProgress(now);
+    this.watch(now);
+  },
+
+  /* Typing progress is a firehose, so it gets its own overwritten key
+     instead of piling up in the replayable message bus. */
+  sendProgress(p){ LS.set(PROG + MYCODE, { p:p, ts:Date.now() }); },
+
+  pullProgress(now){
+    if (!S.peer || S.mode !== 'friend') return;
+    const v = LS.get(PROG + S.peer, null);
+    if (!v || typeof v.p !== 'number') return;
+    if (v.ts <= this.lastProgTs || v.ts < this.since) return;
+    this.lastProgTs = v.ts;
+    this.lastHeard = now;
+    if (S.phase === 'round'){
+      S.foeProg = v.p;
+      el.trackFoe.style.width = (v.p * 100) + '%';
+    }
+  },
+
+  /* A closed tab never gets to send 'bye', so a peer whose heartbeat has
+     gone quiet counts as having left — but only during an actual match,
+     and only after a window wide enough to survive a throttled tab. */
+  watch(now){
+    const live = S.phase === 'countdown' || S.phase === 'round' ||
+                 S.phase === 'resolve'   || S.view  === 'room';
+    if (!live || S.mode !== 'friend' || !S.peer){ this.lostAt = 0; return; }
+
+    const beat = LS.get('kw_p_' + S.peer, 0);
+    const fresh = (typeof beat === 'number' && now - beat < ALIVE_MS) ||
+                  (now - this.lastHeard < ALIVE_MS);
+    if (fresh){ this.lostAt = 0; return; }
+
+    if (!this.lostAt) this.lostAt = now;
+    else if (now - this.lostAt > LOST_MS) forfeitWin();
+  },
+
+  online(code){
+    const ts = LS.get('kw_p_' + code, 0);
+    return typeof ts === 'number' && Date.now() - ts < 6000;
+  },
+
+  send(msg){
+    if (!msg.to && msg.to !== null) msg.to = S.peer;
+    msg.from = MYCODE;
+    msg.ts = Date.now();
+    msg.mid = msg.ts + '_' + Math.random().toString(36).slice(2, 8);
+    const arr = LS.get(BUS, []);
+    arr.push(msg);
+    const cut = Date.now() - 20000;
+    LS.set(BUS, arr.filter(m => m && m.ts > cut).slice(-80));
+    this.seen.set(msg.mid, Date.now());
+    if (this.bc){ try{ this.bc.postMessage(msg); }catch(e){} }
+  },
+
+  accept(m){
+    if (!m || !m.mid || !m.ts) return;
+    if (m.from === MYCODE) return;
+    if (m.to && m.to !== MYCODE) return;
+    if (m.ts < this.since) return;          // never act on history
+    if (this.seen.has(m.mid)) return;
+    this.seen.set(m.mid, Date.now());
+    if (m.from === S.peer) this.lastHeard = Date.now();
+    onNet(m);
+  },
+
+  /* Prune by age. Dropping the whole set (as this used to) let the bus
+     replay itself — an old 'bye' coming round again ended matches that
+     nobody had left. */
+  prune(now){
+    if (this.seen.size <= SEEN_MAX) return;
+    const cut = now - SEEN_TTL;
+    for (const [k, t] of this.seen) if (t < cut) this.seen.delete(k);
+  }
+};
+
+function onNet(m){
+  switch (m.type){
+    /* --- random matchmaking ---
+       Both sides broadcast 'seek'. The lower code claims the pair, so two
+       simultaneous seekers can never both wait for the other. --- */
+    case 'seek':
+      if (!S.seeking || S.peer) return;
+      if (MYCODE >= m.from) return;              // the other side claims this pair
+      Net.send({ type:'match', to:m.from });
+      handoff(m.from, true);
+      break;
+
+    case 'match':
+      if (S.peer) return;
+      // either we are searching, or we agreed to a rematch and are waiting
+      if (!S.seeking && S.awaitingRematch !== m.from) return;
+      handoff(m.from, false);
+      break;
+
+    /* --- rematch ---
+       The winner's screen offers 재도전. A fresh opponent always wins the
+       race (the seek broadcast goes out first and gets a full second of
+       priority); the previous opponent is the fallback, and a silent one
+       just lets the ordinary search run its course. --- */
+    case 'rematch': {
+      if (S.peer !== m.from && S.rematchPeer !== m.from) return;
+
+      if (S.seeking){
+        if (S.peer || S.rematchPeer !== m.from) return;
+        if (MYCODE < m.from) claimRematch(m.from);   // lower code hosts
+        else S.rematchReady = true;
+        return;
+      }
+      // idle on the result screen: say yes and wait to be claimed
+      if (S.phase === 'over' && S.view === 'result'){
+        S.awaitingRematch = m.from;
+        $('resultHint').textContent = t().rematchAsked;
+        Net.send({ type:'rematchOk', to:m.from });
+        later(() => {
+          if (S.awaitingRematch === m.from && !S.peer){
+            S.awaitingRematch = null;
+            $('resultHint').textContent = t().resultHint;
+          }
+        }, 9000);
+      }
+      return;
+    }
+
+    case 'rematchOk':
+      if (!S.seeking || S.peer || S.rematchPeer !== m.from) return;
+      S.rematchReady = true;
+      return;
+
+    case 'hello':
+      if (S.peer) return;
+      S.peer = m.from; S.isHost = false; S.mode = 'friend';
+      Net.send({ type:'accept', to:m.from });
+      enterRoom();
+      break;
+
+    case 'accept':
+      if (S.peer !== m.from) return;
+      setStatus(el.netStatus, t().netJoined, 'ok');
+      enterRoom();
+      break;
+
+    case 'bye':
+      if (S.peer !== m.from) return;
+      forfeitWin();
+      break;
+
+    case 'start':
+      if (S.peer !== m.from) return;
+      beginBattle('friend', false);
+      break;
+
+    case 'round':
+      if (S.peer !== m.from || S.isHost) return;
+      applyRound(m.word, m.hint, m.wordLang);
+      break;
+
+    case 'done':
+      if (S.peer !== m.from || !S.isHost) return;
+      hostResolve('guest');
+      break;
+
+    case 'res':
+      if (S.peer !== m.from || S.isHost) return;
+      applyResolve(m.winner === 'guest' ? 'ally' : 'foe', m.dmg, m.ult,
+                   m.guestHp, m.hostHp, m.guestRage, m.hostRage,
+                   m.guestAtk, m.hostAtk,
+                   (m.potions || []).map(x => ({ side: x.side === 'guest' ? 'ally' : 'foe',
+                                                 kind:x.kind, amount:x.amount })));
+      break;
+  }
+}
+
+function setStatus(node, text, cls){
+  node.textContent = text || '';
+  node.className = 'net-status' + (cls ? ' ' + cls : '');
+}
+
+/* ============================================================
+   10. VIEWS
+   ============================================================ */
+const VIEWS = ['menu','ranked','story','versus','search','handoff','friend','room','result'];
+function show(v){
+  S.view = v;
+  el.ui.hidden = false;
+  el.stage.hidden = true;
+  el.langBar.hidden = false;          // language is pickable everywhere but mid-fight
+  el.exitHint.hidden = true;
+  VIEWS.forEach(name => { const p = $('v-' + name); if (p) p.hidden = name !== v; });
+}
+function hideUI(){
+  el.ui.hidden = true;
+  el.stage.hidden = false;
+  el.langBar.hidden = true;           // no language switching once the match is live
+  el.exitHint.hidden = false;
+  el.exitHint.textContent = t().exitHint;
+  S.view = 'battle';                  // keep S.view honest about where we are
+}
+
+function leaveNetwork(){
+  if (S.peer) Net.send({ type:'bye', to:S.peer });
+  S.peer = null; S.isHost = false;
+  S.rematchPeer = null; S.awaitingRematch = null;
+  stopSeek();
+  Net.stop();
+}
+function toMenu(){
+  clearTimers();
+  clearInterval(S.hoTimer); S.hoTimer = 0;
+  cancelAnimationFrame(S.raf);
+  S.phase = 'menu';
+  leaveNetwork();
+  show('menu');
+}
+
+/* ============================================================
+   11. LANGUAGE
+   ============================================================ */
+function applyLang(){
+  const d = t();
+  document.documentElement.lang = S.uiLang;
+
+  $('mTagline').textContent = d.tagline;
+  $('mRanked').textContent  = d.ranked;
+  $('mVersus').textContent  = d.versus;
+  $('mStory').textContent   = d.story;
+  $('mHint').textContent    = d.menuHint;
+
+  $('rkTitle').textContent = d.rkTitle;
+  $('rkLead').textContent  = d.rkLead;
+  $('rkSub').textContent   = d.rkSub;
+  $('rkBack').textContent  = d.back;
+
+  $('stTitle').textContent = d.stTitle;
+  $('stLead').textContent  = d.stLead;
+  $('stSub').textContent   = d.stSub;
+  $('energyLabel').textContent = d.energyLabel;
+  $('stBack').textContent  = d.back;
+
+  $('vsTitle').textContent  = d.vsTitle;
+  $('vsLead').textContent   = d.vsLead;
+  $('vsRandom').textContent = d.vsRandom;
+  $('vsFriend').textContent = d.vsFriend;
+  $('vsBack').textContent   = d.back;
+
+  $('frTitle').textContent      = d.frTitle;
+  $('frMyLabel').textContent    = d.frMyLabel;
+  $('frMyNote').textContent     = d.frMyNote;
+  $('frEnterLabel').textContent = d.frEnterLabel;
+  $('btnConnect').textContent   = d.confirm;
+  $('frBack').textContent       = d.back;
+  el.friendCode.placeholder     = d.frPlaceholder;
+
+  $('skTitle').textContent  = d.skTitle;
+  $('skLead').textContent   = d.skLead;
+  $('skCancel').textContent = d.cancel;
+
+  $('rmTitle').textContent  = d.rmTitle;
+  $('rmLead').textContent   = d.rmLead;
+  $('rmYou').textContent    = d.rmYou;
+  $('rmFriend').textContent = d.rmFriend;
+  el.btnRoomStart.textContent = d.startBtn;
+  $('btnRoomLeave').textContent = d.leave;
+
+  $('againBtn').textContent   = d.again;
+  $('toMenuBtn').textContent  = d.toMenu;
+  $('resultHint').textContent = d.resultHint;
+  $('stSpeedL').textContent   = d.stSpeedL;
+  $('stAccL').textContent     = d.stAccL;
+  $('stComboL').textContent   = d.stComboL;
+  $('stRoundsL').textContent  = d.stRoundsL;
+  $('stHpL').textContent      = d.stHpL;
+
+  el.allyName.textContent  = d.allyName;
+  el.allyTitle.textContent = d.allyTitle;
+  el.roundLabel.textContent = d.round;
+  el.tnameAlly.textContent = d.you;
+  el.tnameFoe.textContent  = d.rival;
+  el.input.placeholder     = d.placeholder;
+
+  if (S.word) el.kicker.textContent = S.wordLang === 'ko' ? d.wordKoTag : d.wordEnTag;
+  renderInputState();
+
+  renderEnergy();
+  renderHud();
+}
+
+/* ============================================================
+   12. HUD
+   ============================================================ */
+function renderHud(){
+  const d = t();
+  const a = Math.max(0, S.ally.hp), f = Math.max(0, S.foe.hp);
+  el.hpAlly.style.width = (a / MAX_HP * 100) + '%';
+  el.hpFoe.style.width  = (f / MAX_HP * 100) + '%';
+  el.ghostAlly.style.width = (a / MAX_HP * 100) + '%';
+  el.ghostFoe.style.width  = (f / MAX_HP * 100) + '%';
+  el.hpNumAlly.textContent = a + ' / ' + MAX_HP;
+  el.hpNumFoe.textContent  = f + ' / ' + MAX_HP;
+
+  el.rageFillAlly.style.width = Math.min(100, S.ally.rage) + '%';
+  el.rageFillFoe.style.width  = Math.min(100, S.foe.rage) + '%';
+  el.rageAlly.classList.toggle('full', S.ally.rage >= 100);
+  el.rageFoe.classList.toggle('full',  S.foe.rage  >= 100);
+  el.rageLabelAlly.classList.toggle('ready', S.ally.rage >= 100);
+  el.rageLabelFoe.classList.toggle('ready',  S.foe.rage  >= 100);
+  el.rageLabelAlly.textContent = S.ally.rage >= 100 ? d.rage + ' — ' + d.ult : d.rage;
+  el.rageLabelFoe.textContent  = S.foe.rage  >= 100 ? d.rage + ' — ' + d.ult : d.rage;
+
+  const showSets = S.mode === 'bot' && (S.sets.ally || S.sets.foe);
+  el.setScore.hidden = !showSets;
+  if (showSets) el.setScore.textContent = S.sets.ally + ' : ' + S.sets.foe;
+
+  el.roundNum.textContent = Math.max(1, S.round);
+  el.modeLabel.textContent = S.mode === 'bot'
+    ? d.modeBot(S.botLv)
+    : (S.matchKind === 'random' ? d.modeRandom : d.modeFriend);
+
+  if (S.mode === 'bot'){
+    const tier = S.botLv <= 3 ? 0 : (S.botLv <= 7 ? 1 : 2);
+    el.foeName.textContent = BOT_NAMES[S.uiLang][tier] + ' (' + d.botTag + ')';
+    el.foeTitle.innerHTML = d.foeTitle + ' · <span class="lv" id="lvChip">Lv.' + S.botLv + '</span>';
+  } else {
+    el.foeName.textContent = S.peer || '------';
+    el.foeTitle.textContent = d.foeTitle;
+  }
+
+  el.buffAlly.innerHTML = S.ally.atk > 0
+    ? '<span class="buff">' + vial('atk') + d.buffAtk(S.ally.atk) + '</span>' : '';
+  el.buffFoe.innerHTML  = S.foe.atk > 0
+    ? '<span class="buff">' + vial('atk') + d.buffAtk(S.foe.atk) + '</span>' : '';
+
+  if (S.combo >= 2){
+    el.comboChip.textContent = d.comboFmt(S.combo);
+    el.comboChip.classList.add('on');
+  } else el.comboChip.classList.remove('on');
+}
+
+function flashLevel(dir){
+  const chip = $('lvChip');
+  if (!chip) return;
+  chip.classList.remove('up','down'); void chip.offsetWidth;
+  chip.classList.add(dir > 0 ? 'up' : 'down');
+}
+
+/* ============================================================
+   13. WORDS
+   Korean UI → words come in BOTH languages.
+   English UI → English words only.
+   ============================================================ */
+function pickPair(){
+  const tier = S.round <= 3 ? 1 : (S.round <= 7 ? (Math.random() < .35 ? 1 : 2) : (Math.random() < .5 ? 2 : 3));
+  const list = POOL[tier];
+  return list[Math.floor(Math.random() * list.length)];
+}
+function chooseWordLang(){
+  return S.uiLang === 'en' ? 'en' : (Math.random() < 0.5 ? 'ko' : 'en');
+}
+
+function applyRound(word, hint, wordLang){
+  S.word = word; S.hint = hint; S.wordLang = wordLang;
+  S.target = decompose(word);
+  S.cum = [0];
+  let acc = 0;
+  for (const ch of word){ acc += decompose(ch).length; S.cum.push(acc); }
+
+  S.typed = []; S.errFlag = false; S.perfect = true;
+  S.foeProg = 0; S.doneSent = false;
+
+  const d = t();
+  el.kicker.textContent = wordLang === 'ko' ? d.wordKoTag : d.wordEnTag;
+  el.kicker.classList.toggle('ko', wordLang === 'ko');
+  renderInputState();
+
+  el.trackAlly.style.width = '0%';
+  el.trackFoe.style.width  = '0%';
+
+  resetInput(true);
+  renderWord();
+  renderHud();
+
+  S.phase = 'round';
+  S.roundT0 = performance.now();
+
+  if (S.mode === 'bot'){
+    S.foeCps = botCps(S.botLv, wordLang) * (1 + (Math.random() * 2 - 1) * 0.12);
+    const dl = botDelay(S.botLv);
+    S.foeDelay = dl[0] + Math.random() * (dl[1] - dl[0]);
+  }
+  loop();
+}
+
+function renderWord(){
+  const m = matchLen(S.typed, S.target);
+  let done = 0;
+  for (let i = 1; i < S.cum.length; i++){ if (S.cum[i] <= m) done = i; else break; }
+
+  const chars = Array.from(S.word);
+  let html = '';
+  chars.forEach((ch, i) => {
+    const cls = i < done ? 'done' : (i === done ? 'cur' : '');
+    const sp  = ch === ' ' ? ' sp' : '';
+    html += '<span class="ch ' + cls + sp + '">' + (ch === ' ' ? '&nbsp;' : ch) + '</span>';
+  });
+  el.word.innerHTML = html;
+  el.word.classList.toggle('err', S.errFlag);
+  el.hint.textContent = S.hint;
+
+  const p = S.target.length ? m / S.target.length : 0;
+  el.trackAlly.style.width = (p * 100) + '%';
+  return p;
+}
+
+/* ============================================================
+   13b. CAPS LOCK READOUT
+   Caps Lock is the one input-state flag a browser can actually read
+   (getModifierState), so it is the only one shown. Which IME is
+   active cannot be queried — only guessed — so it is not displayed.
+   ============================================================ */
+function probeKey(e){
+  let caps = S.caps, known = S.capsKnown;
+  if (typeof e.getModifierState === 'function'){
+    try{ caps = e.getModifierState('CapsLock'); known = true; }catch(err){}
+  }
+  if (!known && e.type === 'keydown' && /^[a-zA-Z]$/.test(e.key) && !e.shiftKey){
+    caps = e.key === e.key.toUpperCase(); known = true;
+  }
+  if (caps !== S.caps || known !== S.capsKnown){
+    S.caps = caps; S.capsKnown = known; renderInputState();
+  }
+}
+
+function renderInputState(){
+  const d = t();
+  const capsOn  = S.capsKnown && S.caps;
+  const capsBad = capsOn && S.wordLang === 'en';
+
+  el.capsChip.hidden = !capsOn;
+  el.capsChipV.textContent = d.capsOn;
+  el.capsChip.classList.toggle('bad', capsBad);
+
+  el.imeNote.textContent = capsBad ? d.capsWarn : (S.wordLang === 'ko' ? d.imeKo : d.imeEn);
+  el.imeNote.classList.toggle('warn', capsBad);
+}
+
+document.addEventListener('keydown', probeKey, true);
+document.addEventListener('keyup',   probeKey, true);
+
+/* ============================================================
+   14. INPUT
+   The field is rebuilt at the start of every round. A cloned
+   node carries no IME composition state, so a half-composed
+   syllable from the previous word can never leak in — which is
+   exactly what "고" turning into "지고" was.
+   ============================================================ */
+function resetInput(focus){
+  const old = el.input;
+  try{ old.blur(); }catch(e){}
+  old.value = '';
+  const fresh = old.cloneNode(false);
+  fresh.value = '';
+  old.replaceWith(fresh);
+  el.input = fresh;
+  bindInput(fresh);
+  if (focus){
+    fresh.focus();
+    later(() => { if (el.input === fresh && S.typed.length === 0) fresh.value = ''; }, 0);
+  }
+}
+
+function bindInput(node){
+  node.addEventListener('input', onType);
+  node.addEventListener('compositionend', () => { if (S.phase !== 'round') node.value = ''; });
+}
+
+function onType(e){
+  const node = e.target;
+  if (node !== el.input){ node.value = ''; return; }
+  if (S.phase !== 'round'){ node.value = ''; return; }
+
+  const prevLen = S.typed.length;
+  S.typed = decompose(node.value);
+  if (S.typed.length > prevLen) S.strokes += (S.typed.length - prevLen);
+
+  const m = matchLen(S.typed, S.target);
+  const ok = m === S.typed.length;
+
+  if (!ok){
+    if (!S.errFlag){
+      S.errors++; S.perfect = false; S.combo = 0;
+      node.classList.remove('err'); void node.offsetWidth; node.classList.add('err');
+    }
+    S.errFlag = true;
+  } else {
+    S.errFlag = false;
+    node.classList.remove('err');
+  }
+
+  const p = renderWord();
+  renderHud();
+
+  if (S.mode === 'friend' && S.peer){
+    const now = performance.now();
+    if (now - S.lastSent > 90){ S.lastSent = now; Net.sendProgress(p); }
+  }
+
+  if (ok && S.typed.length === S.target.length && S.target.length > 0){
+    if (S.mode === 'bot') resolve('ally');
+    else if (S.isHost) hostResolve('host');
+    else if (!S.doneSent){
+      S.doneSent = true;
+      S.phase = 'resolve';
+      Net.sendProgress(1);
+      Net.send({ type:'done', to:S.peer });
+    }
+  }
+}
+
+/* ============================================================
+   15. FX
+   ============================================================ */
+function fxAt(node){
+  const r = node.getBoundingClientRect();
+  return { x:r.left + r.width / 2, y:r.top + r.height / 2 };
+}
+function showDamage(target, amount, crit){
+  const p = fxAt(target === 'foe' ? el.sigilFoe : el.sigilAlly);
+  const d = document.createElement('div');
+  d.className = 'dmg ' + (target === 'foe' ? 'on-foe' : 'on-ally') + (crit ? ' crit' : '');
+  d.textContent = '-' + amount;
+  d.style.left = p.x + 'px'; d.style.top = (p.y - 20) + 'px';
+  el.fx.appendChild(d);
+  setTimeout(() => d.remove(), 1100);
+}
+function showSlash(target){
+  const p = fxAt(target === 'foe' ? el.sigilFoe : el.sigilAlly);
+  for (let i = 0; i < 3; i++){
+    const s = document.createElement('div');
+    s.className = 'slash';
+    s.style.left = (p.x - 150) + 'px';
+    s.style.top  = (p.y - 26 + i * 22) + 'px';
+    s.style.setProperty('--w', (240 + Math.random() * 120) + 'px');
+    s.style.transform = 'rotate(' + (-16 + i * 12) + 'deg)';
+    s.style.animationDelay = (i * 55) + 'ms';
+    el.fx.appendChild(s);
+    setTimeout(() => s.remove(), 500 + i * 60);
+  }
+}
+function showSparks(target, color){
+  const p = fxAt(target === 'foe' ? el.sigilFoe : el.sigilAlly);
+  const b = document.createElement('div');
+  b.className = 'burst';
+  b.style.left = p.x + 'px'; b.style.top = p.y + 'px';
+  for (let i = 0; i < 16; i++){
+    const s = document.createElement('div');
+    s.className = 'spark';
+    const a = Math.random() * Math.PI * 2, dd = 40 + Math.random() * 90;
+    s.style.setProperty('--sx', (Math.cos(a) * dd).toFixed(1) + 'px');
+    s.style.setProperty('--sy', (Math.sin(a) * dd).toFixed(1) + 'px');
+    s.style.background = color; s.style.boxShadow = '0 0 8px ' + color;
+    s.style.animationDelay = (Math.random() * 90) + 'ms';
+    b.appendChild(s);
+  }
+  el.fx.appendChild(b);
+  setTimeout(() => b.remove(), 900);
+}
+function flash(color){
+  const f = document.createElement('div');
+  f.className = 'screenflash'; f.style.background = color;
+  el.fx.appendChild(f); setTimeout(() => f.remove(), 460);
+}
+function sweep(){
+  const s = document.createElement('div');
+  s.className = 'ult-sweep'; el.fx.appendChild(s);
+  setTimeout(() => s.remove(), 680);
+}
+function callout(text, good){
+  const c = document.createElement('div');
+  c.className = 'callout ' + (good ? 'good' : 'bad');
+  c.textContent = text; el.fx.appendChild(c);
+  setTimeout(() => c.remove(), 1000);
+}
+function shake(){
+  el.stage.classList.remove('shake'); void el.stage.offsetWidth; el.stage.classList.add('shake');
+}
+function sigilHit(which){
+  const n = which === 'foe' ? el.sigilFoe : el.sigilAlly;
+  n.classList.remove('hit'); void n.offsetWidth; n.classList.add('hit');
+}
+function strikeFx(target, dmg, ult){
+  const d = t();
+  if (ult){ sweep(); flash(target === 'foe' ? 'rgba(242,223,174,.5)' : 'rgba(232,73,60,.4)'); }
+  showSlash(target);
+  showSparks(target, target === 'foe' ? '#ffd08a' : '#ff8b7f');
+  showDamage(target, dmg, ult);
+  sigilHit(target); shake();
+  if (target === 'ally') flash('rgba(232,73,60,.3)');
+  callout(ult ? d.ult : (target === 'foe' ? d.hitGood : d.hitBad), target === 'foe');
+}
+
+/* ============================================================
+   16. ROUND LOOP
+   ============================================================ */
+function startRound(){
+  S.round++;
+  if (S.mode === 'friend' && !S.isHost) return;   // the guest waits for the host
+
+  const pair = pickPair();
+  const wl = chooseWordLang();
+  const word = wl === 'ko' ? pair[0] : pair[1];
+  const hint = wl === 'ko' ? pair[1] : pair[0];
+
+  if (S.mode === 'friend') Net.send({ type:'round', to:S.peer, word:word, hint:hint, wordLang:wl });
+  applyRound(word, hint, wl);
+}
+
+function loop(){
+  if (S.phase !== 'round') return;
+  if (S.mode === 'bot'){
+    const elapsed = performance.now() - S.roundT0 - S.foeDelay;
+    S.foeProg = Math.max(0, Math.min(1, elapsed * S.foeCps / 1000 / S.target.length));
+    el.trackFoe.style.width = (S.foeProg * 100) + '%';
+    if (S.foeProg >= 1){ resolve('foe'); return; }
+  }
+  S.raf = requestAnimationFrame(loop);
+}
+
+/* ============================================================
+   15b. POTIONS
+   No accounts yet, so nothing is owned or carried: a potion is
+   rolled during the exchange and drunk the moment it lands.
+   Drops come from two places — a random roll after every exchange
+   (sometimes for both fighters at once) and a guaranteed one at
+   every 5th straight win.
+   ============================================================ */
+const HEAL_MIN = 12, HEAL_SPAN = 9;   // 12–20 HP
+const ATK_CHARGES = 2;                 // attacks buffed by one power potion
+const ATK_MULT = 1.5;
+const DROP_BOTH = 0.10;                // both fighters get one
+const DROP_ONE  = 0.34;                // ... otherwise one of them, up to here
+
+function makePotion(side){
+  const heal = Math.random() < 0.5;
+  return {
+    side,
+    kind: heal ? 'heal' : 'atk',
+    amount: heal ? HEAL_MIN + Math.floor(Math.random() * HEAL_SPAN) : ATK_CHARGES
+  };
+}
+
+function rollPotions(allyCombo, foeCombo){
+  const out = [];
+  if (allyCombo > 0 && allyCombo % 5 === 0) out.push(makePotion('ally'));
+  if (foeCombo  > 0 && foeCombo  % 5 === 0) out.push(makePotion('foe'));
+
+  const r = Math.random();
+  if (r < DROP_BOTH){ out.push(makePotion('ally')); out.push(makePotion('foe')); }
+  else if (r < DROP_ONE){ out.push(makePotion(Math.random() < 0.5 ? 'ally' : 'foe')); }
+  return out;
+}
+
+/* Effects land immediately (a heal has to be able to save someone on
+   the same exchange); only the pickup animation is staggered. */
+function applyPotions(list){
+  if (!list || !list.length) return;
+  const sides = new Set();
+  list.forEach((p, i) => {
+    const tgt = p.side === 'ally' ? S.ally : S.foe;
+    if (p.kind === 'heal') tgt.hp = Math.min(MAX_HP, tgt.hp + p.amount);
+    else tgt.atk = (tgt.atk || 0) + p.amount;
+    sides.add(p.side);
+    later(() => { potionFx(p); renderHud(); }, 420 + i * 240);
+  });
+  if (sides.size === 2) later(() => callout(t().supply, true), 380);
+}
+
+/* A potion is drawn, not lettered: red vial for power, blue for healing.
+   Plain fills only — no gradient ids to collide when several are on
+   screen at once. */
+function vial(kind, cls){
+  const c = kind === 'heal'
+    ? { liquid:'#2f8de0', deep:'#134a86', hi:'#bfe2ff' }
+    : { liquid:'#d8342a', deep:'#7d1610', hi:'#ffb0a6' };
+  return '<svg class="vial ' + (cls || '') + '" viewBox="0 0 28 38" aria-hidden="true">'
+    + '<rect x="10" y="0" width="8" height="5" rx="1.6" fill="#c9a763"/>'
+    + '<rect x="9" y="4.4" width="10" height="2.4" rx="1" fill="#8a7040"/>'
+    + '<path d="M11 6.5 L11 13 C5.5 16.5 3 21 3 26.5 C3 32.5 7.9 36 14 36'
+    +        ' C20.1 36 25 32.5 25 26.5 C25 21 22.5 16.5 17 13 L17 6.5 Z"'
+    +        ' fill="rgba(6,16,20,.75)" stroke="rgba(255,255,255,.4)" stroke-width="1.2"/>'
+    + '<path d="M4.2 20.5 C3.4 22.4 3 24.4 3 26.5 C3 32.5 7.9 36 14 36'
+    +        ' C20.1 36 25 32.5 25 26.5 C25 24.4 24.6 22.4 23.8 20.5 Z" fill="' + c.liquid + '"/>'
+    + '<path d="M5.2 24 C4.4 26.6 4.6 30 6.4 32.4 C4 31 3 28.6 3 26.5 C3 25.6 3.1 24.8 3.3 24 Z"'
+    +        ' fill="' + c.deep + '" opacity=".85"/>'
+    + '<ellipse cx="14" cy="20.5" rx="9.9" ry="1.5" fill="' + c.hi + '" opacity=".55"/>'
+    + '<circle cx="10.5" cy="27" r="1.7" fill="' + c.hi + '" opacity=".5"/>'
+    + '<circle cx="17" cy="30.5" r="1.1" fill="' + c.hi + '" opacity=".4"/>'
+    + '<path d="M8.6 15.4 C6.2 18.8 5.2 22.4 5.4 26" stroke="rgba(255,255,255,.45)"'
+    +        ' stroke-width="1.5" fill="none" stroke-linecap="round"/>'
+    + '</svg>';
+}
+
+function potionFx(p){
+  const d = t();
+  const at = fxAt(p.side === 'ally' ? el.sigilAlly : el.sigilFoe);
+  const n = document.createElement('div');
+  n.className = 'pot ' + p.kind;
+  n.innerHTML = vial(p.kind) + '<span>' +
+    (p.kind === 'heal' ? '＋' + p.amount + ' ' + d.potHeal : d.potAtk) + '</span>';
+  n.style.left = at.x + 'px';
+  n.style.top  = (at.y + 118) + 'px';     // below the HUD, in open arena space
+  el.fx.appendChild(n);
+
+  // the label is wide and the sigils sit near the edges — keep it on screen
+  const r = n.getBoundingClientRect(), pad = 14;
+  if (r.left < pad) n.style.left = (at.x + (pad - r.left)) + 'px';
+  else if (r.right > window.innerWidth - pad)
+    n.style.left = (at.x - (r.right - (window.innerWidth - pad))) + 'px';
+
+  setTimeout(() => n.remove(), 1400);
+  showSparks(p.side === 'foe' ? 'foe' : 'ally', p.kind === 'heal' ? '#8fc9ff' : '#ff8a7d');
+}
+
+/* spend one charge of a power potion, if the striker has any */
+function withAtkBuff(side, dmg){
+  const o = side === 'ally' ? S.ally : S.foe;
+  if (o.atk > 0){ o.atk--; return Math.round(dmg * ATK_MULT); }
+  return dmg;
+}
+
+function damageFor(loserProg, combo, ultimate){
+  let dmg = 9;
+  dmg += Math.round((1 - loserProg) * 10);
+  dmg += Math.min(combo, 5) * 1.5;
+  dmg = Math.round(dmg);
+  if (ultimate) dmg = Math.round(dmg * 2.2);
+  return Math.max(4, dmg);
+}
+function myProgress(){
+  return S.target.length ? matchLen(S.typed, S.target) / S.target.length : 0;
+}
+
+/* --- single player --- */
+function resolve(winner){
+  cancelAnimationFrame(S.raf);
+  if (S.phase !== 'round') return;
+  S.phase = 'resolve';
+  try{ el.input.blur(); el.input.value = ''; }catch(e){}
+  S.exchanges++;
+  S.timeMs += performance.now() - S.roundT0;
+
+  if (winner === 'ally'){
+    S.combo++; S.foeCombo = 0;
+    S.bestCombo = Math.max(S.bestCombo, S.combo);
+    S.units += S.target.length;
+    const ult = S.ally.rage >= 100;
+    const dmg = withAtkBuff('ally', damageFor(S.foeProg, S.combo, ult));
+    S.foe.hp -= dmg;
+    if (ult) S.ally.rage = 0;
+    else S.ally.rage = Math.min(100, S.ally.rage + (S.perfect ? 24 : 12));
+    strikeFx('foe', dmg, ult);
+  } else {
+    S.combo = 0; S.foeCombo++;
+    S.units += matchLen(S.typed, S.target);
+    const ult = S.foe.rage >= 100;
+    const dmg = withAtkBuff('foe', damageFor(myProgress(), 2, ult));
+    S.ally.hp -= dmg;
+    if (ult) S.foe.rage = 0;
+    else S.foe.rage = Math.min(100, S.foe.rage + 16);
+    strikeFx('ally', dmg, ult);
+  }
+
+  applyPotions(rollPotions(S.combo, S.foeCombo));
+  adjustBot(winner === 'ally');
+  renderHud();
+  nextBeat();
+}
+
+/* --- adaptive bot: re-read the last two exchanges --- */
+function adjustBot(won){
+  if (S.mode !== 'bot') return;
+  S.recent.push(won);
+  if (S.recent.length < ADJUST_EVERY) return;
+  const wins = S.recent.slice(-ADJUST_EVERY).filter(Boolean).length;
+  S.recent = [];
+  let dir = 0;
+  if (wins === ADJUST_EVERY && S.botLv < 10){ S.botLv++; dir = 1; }
+  else if (wins === 0 && S.botLv > 1){ S.botLv--; dir = -1; }
+  if (dir){ renderHud(); flashLevel(dir); }
+}
+
+/* --- friend match: the host is authoritative --- */
+function hostResolve(who){
+  cancelAnimationFrame(S.raf);
+  if (S.phase !== 'round') return;
+  S.phase = 'resolve';
+
+  const hostWon = who === 'host';
+  const loserProg = hostWon ? S.foeProg : myProgress();
+  const winnerRage = hostWon ? S.ally.rage : S.foe.rage;
+  const ult = winnerRage >= 100;
+  const dmg = withAtkBuff(hostWon ? 'ally' : 'foe',
+                          damageFor(loserProg, hostWon ? S.combo + 1 : 2, ult));
+
+  if (hostWon){
+    S.foe.hp -= dmg;
+    if (ult) S.ally.rage = 0; else S.ally.rage = Math.min(100, S.ally.rage + 18);
+  } else {
+    S.ally.hp -= dmg;
+    if (ult) S.foe.rage = 0; else S.foe.rage = Math.min(100, S.foe.rage + 18);
+  }
+
+  // the host rolls the drops so both screens show the same ones
+  const pots = rollPotions(hostWon ? S.combo + 1 : 0, hostWon ? 0 : S.foeCombo + 1);
+
+  Net.send({
+    type:'res', to:S.peer, winner:hostWon ? 'host' : 'guest', dmg:dmg, ult:ult,
+    hostHp:S.ally.hp, guestHp:S.foe.hp, hostRage:S.ally.rage, guestRage:S.foe.rage,
+    hostAtk:S.ally.atk, guestAtk:S.foe.atk,
+    potions: pots.map(x => ({ side: x.side === 'ally' ? 'host' : 'guest', kind:x.kind, amount:x.amount }))
+  });
+
+  applyResolve(hostWon ? 'ally' : 'foe', dmg, ult, S.ally.hp, S.foe.hp,
+               S.ally.rage, S.foe.rage, S.ally.atk, S.foe.atk, pots);
+}
+
+function applyResolve(side, dmg, ult, myHp, theirHp, myRage, theirRage, myAtk, theirAtk, pots){
+  cancelAnimationFrame(S.raf);
+  if (S.phase === 'over') return;
+  S.phase = 'resolve';
+  try{ el.input.blur(); el.input.value = ''; }catch(e){}
+  S.exchanges++;
+  S.timeMs += performance.now() - S.roundT0;
+
+  if (side === 'ally'){
+    S.combo++; S.foeCombo = 0;
+    S.bestCombo = Math.max(S.bestCombo, S.combo);
+    S.units += S.target.length;
+  } else {
+    S.combo = 0; S.foeCombo++;
+    S.units += matchLen(S.typed, S.target);
+  }
+
+  S.ally.hp = myHp; S.foe.hp = theirHp;
+  S.ally.rage = myRage; S.foe.rage = theirRage;
+  if (typeof myAtk === 'number')   S.ally.atk = myAtk;
+  if (typeof theirAtk === 'number') S.foe.atk = theirAtk;
+
+  strikeFx(side === 'ally' ? 'foe' : 'ally', dmg, ult);
+  applyPotions(pots);
+  renderHud();
+  nextBeat();
+}
+
+function nextBeat(){
+  if (S.ally.hp <= 0 || S.foe.hp <= 0){
+    // a bot match is a holding pattern, not a contest — it never ends,
+    // it just starts another set while we wait for a real opponent
+    if (S.mode === 'bot'){ later(nextSet, 1100); return; }
+    later(() => finish(S.foe.hp <= 0), 900);
+  } else if (S.mode === 'bot' || S.isHost){
+    later(startRound, 780);
+  }
+}
+
+function nextSet(){
+  const won = S.foe.hp <= 0;
+  if (won) S.sets.ally++; else S.sets.foe++;
+  callout(won ? t().setWin : t().setLose, won);
+
+  S.ally = { hp:MAX_HP, rage:0, atk:0 };
+  S.foe  = { hp:MAX_HP, rage:0, atk:0 };
+  S.combo = 0; S.foeCombo = 0;
+
+  // snap the bars back to full instead of animating up from empty
+  const bars = [el.hpAlly, el.hpFoe, el.ghostAlly, el.ghostFoe];
+  bars.forEach(n => n.style.transition = 'none');
+  renderHud();
+  requestAnimationFrame(() => requestAnimationFrame(() => bars.forEach(n => n.style.transition = '')));
+
+  later(startRound, 1200);
+}
+
+/* Keep looking for a live opponent while the bot keeps us busy. */
+function startBackgroundSeek(){
+  if (S.matchKind !== 'random' || S.mode !== 'bot') return;
+  Net.start();
+  S.bgSeek = true;
+  S.seeking = true;                    // so the seek / match handlers engage
+  el.seekFlag.hidden = false;
+  el.seekFlag.textContent = t().seekFlag;
+  clearInterval(S.bgTimer);
+  Net.send({ type:'seek', to:null });
+  S.bgTimer = setInterval(() => {
+    if (!S.bgSeek || S.peer) return;
+    Net.send({ type:'seek', to:null });
+  }, 1500);
+}
+
+function fallbackToBot(){
+  stopSeek();
+  S.peer = null; S.isHost = false; S.mode = 'bot';
+  S.botLv = S.botLv || START_LV;
+  beginBattle('bot');
+  startBackgroundSeek();
+}
+
+/* ============================================================
+   17. BATTLE LIFECYCLE
+   ============================================================ */
+function beginBattle(mode, asHost){
+  clearTimers();
+  stopSeek();
+  cancelAnimationFrame(S.raf);
+  S.mode = mode;
+  if (mode === 'friend'){ S.isHost = !!asHost; Net.mark(); }
+  S.awaitingRematch = null;
+  $('resultHint').textContent = t().resultHint;
+
+  hideUI();
+  S.round = 0; S.combo = 0; S.bestCombo = 0; S.exchanges = 0;
+  S.strokes = 0; S.errors = 0; S.units = 0; S.timeMs = 0;
+  S.ally = { hp:MAX_HP, rage:0, atk:0 };
+  S.foe  = { hp:MAX_HP, rage:0, atk:0 };
+  S.foeCombo = 0;
+  S.recent = [];
+  S.sets = { ally:0, foe:0 };
+  S.word = ''; S.hint = ''; S.typed = []; S.target = []; S.cum = [0];
+  el.word.innerHTML = ''; el.hint.textContent = '';
+  resetInput(false);
+  applyLang();
+
+  S.phase = 'countdown';
+  const steps = ['3','2','1', t().countGo];
+  steps.forEach((s, i) => later(() => callout(s, i === 3), i * 560));
+  if (mode === 'bot' || S.isHost) later(startRound, steps.length * 560 - 120);
+  else later(() => { S.roundT0 = performance.now(); }, steps.length * 560 - 120);
+}
+
+/* The opponent walked out: whoever is still here wins by forfeit and
+   lands on the normal result screen, rematch buttons and all. */
+function forfeitWin(){
+  if (S.phase === 'over') return;
+  const live = S.phase === 'countdown' || S.phase === 'round' || S.phase === 'resolve';
+  const kind = S.matchKind;
+
+  S.peer = null; S.isHost = false;
+  Net.lostAt = 0;
+  stopSeek();
+  clearTimers();
+  clearInterval(S.hoTimer); S.hoTimer = 0;
+  cancelAnimationFrame(S.raf);
+
+  if (live){ Net.stop(); finish(true, true); return; }
+
+  // they dropped out before a blow was struck (during the hand-off, say).
+  // There is nothing to win, so put the player straight back on a bot
+  // rather than stranding them on a menu.
+  if (kind === 'random'){ fallbackToBot(); return; }
+
+  Net.stop();
+  S.phase = 'menu';
+  show('friend');
+  setStatus(el.netStatus, t().netLeft, 'err');
+}
+
+function finish(won, forfeit){
+  S.phase = 'over';
+  clearTimers();
+  cancelAnimationFrame(S.raf);
+  const d = t();
+
+  el.verdict.textContent = forfeit ? d.forfeit : (won ? d.win : d.lose);
+  el.verdict.className = 'verdict ' + (won ? 'win' : 'lose');
+  el.verdictSub.textContent = forfeit ? d.forfeitSub : (won ? d.winSub : d.loseSub);
+
+  const mins = Math.max(S.timeMs / 60000, 1 / 60000);
+  const speed = S.uiLang === 'ko' ? Math.round(S.units / mins) : Math.round((S.units / 5) / mins);
+  const acc = S.strokes ? Math.max(0, Math.round((S.strokes - S.errors) / S.strokes * 100)) : 100;
+
+  el.stSpeed.innerHTML = speed + '<small>' + d.speedUnit + '</small>';
+  el.stAcc.innerHTML   = acc + '<small>%</small>';
+  el.stCombo.textContent  = S.bestCombo;
+  el.stRounds.textContent = S.exchanges;
+  el.stHp.textContent     = Math.max(0, S.ally.hp);
+
+  show('result');
+  if (won) flash('rgba(242,223,174,.28)');
+}
+
+/* ============================================================
+   18. MATCHMAKING
+   "Random" looks for a real person first. Nobody online within the
+   search window means a bot steps in — and the bot says so in its name.
+   ============================================================ */
+const SEEK_SECONDS = 5;
+
+function stopSeek(){
+  S.seeking = false;
+  clearInterval(S.seekTimer); S.seekTimer = 0;
+  S.bgSeek = false;
+  clearInterval(S.bgTimer);  S.bgTimer = 0;
+  S.rematchReady = false;
+  el.seekFlag.hidden = true;
+}
+
+/* Take the previous opponent over the bot, but never over someone new
+   who is waiting right now. */
+/* Every pairing — first search, rematch, or a live opponent found while
+   the bot match is running — lands here: a 3-second screen, then the
+   real match. Both sides count down together. */
+const HANDOFF_SECONDS = 3;
+
+function handoff(code, asHost){
+  clearTimers();
+  cancelAnimationFrame(S.raf);
+  stopSeek();
+  clearInterval(S.hoTimer);
+
+  S.peer = code; S.isHost = !!asHost;
+  S.mode = 'friend'; S.matchKind = 'random';
+  S.awaitingRematch = null;
+
+  const d = t();
+  $('hoMyCode').textContent = MYCODE;
+  $('hoPeerCode').textContent = code;
+  $('hoYou').textContent = d.hoYou;
+  $('hoThem').textContent = d.hoThem;
+  show('handoff');
+
+  let n = HANDOFF_SECONDS;
+  const paint = () => { $('handoffCount').innerHTML = '<span>' + Math.max(0, n) + '</span>'; };
+  paint();
+
+  S.hoTimer = setInterval(() => {
+    n--;
+    paint();
+    if (n > 0) return;
+    clearInterval(S.hoTimer); S.hoTimer = 0;
+    if (S.isHost){
+      Net.send({ type:'start', to:code });
+      beginBattle('friend', true);
+    } else {
+      // the host should call it any moment; if it never comes, go back to the bot
+      later(() => { if (S.view === 'handoff') fallbackToBot(); }, 4000);
+    }
+  }, 1000);
+}
+
+function claimRematch(code){
+  if (S.peer) return;
+  Net.send({ type:'match', to:code });
+  handoff(code, true);
+}
+
+function startRandom(rematchPeer){
+  const d = t();
+  S.matchKind = 'random';
+  S.peer = null; S.isHost = false; S.seeking = true;
+  S.rematchPeer = rematchPeer || null;
+  S.rematchReady = false; S.awaitingRematch = null;
+  S.seekLeft = SEEK_SECONDS;
+  Net.start();
+  setStatus($('searchStatus'), '');
+  $('skLead').textContent = S.rematchPeer ? d.skRematchAsk : d.skLead;
+  $('searchCount').textContent = S.seekLeft;
+  show('search');
+
+  Net.send({ type:'seek', to:null });                                  // new opponents first
+  if (S.rematchPeer) Net.send({ type:'rematch', to:S.rematchPeer });
+
+  S.seekTimer = setInterval(() => {
+    if (!S.seeking) return;
+    S.seekLeft--;
+    $('searchCount').textContent = Math.max(0, S.seekLeft);
+
+    // nobody new claimed us in the first second — the old opponent will do
+    if (S.rematchReady && !S.peer && S.rematchPeer){ claimRematch(S.rematchPeer); return; }
+
+    if (S.seekLeft <= 0){
+      stopSeek();
+      setStatus($('searchStatus'), t().skNone, '');
+      later(() => {
+        if (S.view !== 'search') return;
+        S.botLv = START_LV;
+        beginBattle('bot');
+        startBackgroundSeek();          // keep hunting while the bot fills in
+      }, 1100);
+      return;
+    }
+    Net.send({ type:'seek', to:null });
+    if (S.rematchPeer) Net.send({ type:'rematch', to:S.rematchPeer });
+  }, 1000);
+}
+
+function cancelSearch(){
+  stopSeek();
+  Net.stop();
+  S.peer = null; S.isHost = false;
+  S.rematchPeer = null; S.awaitingRematch = null;
+  show('versus');
+}
+
+function enterFriend(){
+  S.mode = 'friend'; S.matchKind = 'friend'; S.peer = null; S.isHost = false;
+  Net.start();
+  el.myCode.textContent = MYCODE;
+  el.friendCode.value = '';
+  setStatus(el.netStatus, '');
+  show('friend');
+}
+
+function enterRoom(){
+  el.rmMyCode.textContent = MYCODE;
+  el.rmPeerCode.textContent = S.peer || '------';
+  el.btnRoomStart.disabled = !S.isHost;
+  setStatus(el.roomStatus, S.isHost ? t().roomHost : t().roomGuest, 'ok');
+  show('room');
+}
+
+function tryConnect(){
+  const d = t();
+  const code = el.friendCode.value.trim().toUpperCase();
+  if (code.length !== 6){ setStatus(el.netStatus, d.netBad, 'err'); return; }
+  if (code === MYCODE){ setStatus(el.netStatus, d.netSelf, 'err'); return; }
+
+  setStatus(el.netStatus, d.netSearching);
+  if (!Net.online(code)){
+    later(() => { if (!S.peer) setStatus(el.netStatus, d.netNone, 'err'); }, 900);
+    return;
+  }
+  S.peer = code; S.isHost = true;
+  Net.send({ type:'hello', to:code });
+  later(() => {
+    if (S.view !== 'room'){
+      S.peer = null; S.isHost = false;
+      setStatus(el.netStatus, d.netNone, 'err');
+    }
+  }, 2500);
+}
+
+/* ============================================================
+   19. STORY — gathering energy (local for now; moves to the DB)
+   ============================================================ */
+S.energy = LS.get('kw_energy', 0) || 0;
+
+function renderEnergy(){
+  const d = t();
+  el.energyNum.textContent = S.energy.toLocaleString();
+  el.energyFill.style.width = Math.min(100, S.energy / ENERGY_GOAL * 100) + '%';
+  el.energyGoal.textContent = S.energy >= ENERGY_GOAL ? d.energyDone : d.energyGoal(S.energy, ENERGY_GOAL);
+}
+
+function gather(){
+  S.energy++;
+  LS.set('kw_energy', S.energy);
+  renderEnergy();
+  el.orbWrap.classList.remove('pulse'); void el.orbWrap.offsetWidth; el.orbWrap.classList.add('pulse');
+
+  const s = document.createElement('div');
+  s.className = 'spark-float';
+  s.textContent = '+1';
+  s.style.left = (40 + Math.random() * 20) + '%';
+  el.orbWrap.appendChild(s);
+  setTimeout(() => s.remove(), 900);
+}
+
+/* ============================================================
+   20. WIRING
+   ============================================================ */
+el.langSelect.addEventListener('change', () => { S.uiLang = el.langSelect.value; applyLang(); });
+
+$('btnRanked').addEventListener('click', () => show('ranked'));
+$('btnVersus').addEventListener('click', () => show('versus'));
+$('btnStory').addEventListener('click',  () => { renderEnergy(); show('story'); });
+
+$('btnRandom').addEventListener('click', startRandom);
+$('skCancel').addEventListener('click', cancelSearch);
+$('btnFriend').addEventListener('click', enterFriend);
+
+$('btnConnect').addEventListener('click', tryConnect);
+el.friendCode.addEventListener('keydown', e => { if (e.key === 'Enter') tryConnect(); });
+
+el.btnRoomStart.addEventListener('click', () => {
+  if (!S.isHost) return;
+  Net.send({ type:'start', to:S.peer });
+  beginBattle('friend', true);
+});
+$('btnRoomLeave').addEventListener('click', toMenu);
+
+el.myCode.addEventListener('click', () => {
+  try{ navigator.clipboard.writeText(MYCODE); setStatus(el.netStatus, t().copied, 'ok'); }catch(e){}
+});
+
+document.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', () => {
+  if (S.view === 'friend') leaveNetwork();
+  show(S.view === 'versus' ? 'menu' : 'menu');
+}));
+
+$('againBtn').addEventListener('click', () => {
+  // private friend match: the lobby stays as it was
+  if (S.matchKind === 'friend' && S.mode === 'friend' && S.peer){
+    if (S.isHost){ Net.send({ type:'start', to:S.peer }); beginBattle('friend', true); }
+    else enterRoom();
+    return;
+  }
+  // random: look for someone new, fall back to the last opponent, then a bot
+  if (S.matchKind === 'random'){
+    startRandom(S.mode === 'friend' ? S.peer : null);
+    return;
+  }
+  if (S.matchKind === 'friend') enterFriend();
+  else beginBattle('bot');
+});
+$('toMenuBtn').addEventListener('click', toMenu);
+
+el.stage.addEventListener('mousedown', e => {
+  if (S.phase === 'round' && e.target !== el.input){ e.preventDefault(); el.input.focus(); }
+});
+
+el.orbWrap.addEventListener('click', gather);
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && S.view === 'result' && !el.ui.hidden){
+    e.preventDefault(); $('againBtn').click();
+  }
+  if (e.key === 'Escape'){
+    if (el.ui.hidden || S.view !== 'menu') toMenu();
+  }
+});
+
+window.addEventListener('beforeunload', () => { if (S.peer) Net.send({ type:'bye', to:S.peer }); });
+
+bindInput(el.input);
+applyLang();
+show('menu');
+</script>
+</body>
+</html>
