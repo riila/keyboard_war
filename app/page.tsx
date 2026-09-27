@@ -20,12 +20,15 @@ type MatchKind = 'random' | 'friend';
 
 const REMATCH_GRACE = 1200;
 
+/** How many people are waiting only matters once you are looking for a match. */
+const VERSUS_VIEWS: View[] = ['versus', 'search', 'handoff', 'friend', 'room', 'result'];
+
 export default function Page() {
   const [lang, setLang] = useState<Lang>('ko');
   const [nick, setNick] = useState('');
   const [view, setView] = useState<View>('menu');
   const [hallStatus, setHallStatus] = useState<'connecting' | 'online' | 'offline'>('connecting');
-  const [waiting, setWaiting] = useState(0);
+  const [online, setOnline] = useState(0);
 
   const [code] = useState(() => (typeof window === 'undefined' ? '------' : myCode()));
   const [friendCode, setFriendCode] = useState('');
@@ -84,7 +87,9 @@ export default function Page() {
     const h = new Hall(nick || 'Wanderer', code);
     hall.current = h;
     h.onStatus = setHallStatus;
-    h.onMembers = (m) => setWaiting(m.filter((x) => x.seeking && x.id !== h.id).length);
+    // everyone in the hall, this tab included: the honest answer to
+    // "is anyone here right now", which the seeking count never was
+    h.onMembers = (m) => setOnline(m.length);
     h.onPair = (p) => enterHandoff(p);
     h.onInvite = (from, matchId, kind) => {
       if (kind === 'rematch') {
@@ -320,16 +325,17 @@ export default function Page() {
 
   /* ---------------- render ---------------- */
   const inBattle = view === 'battle' && battle;
+  const showHall = !inBattle && VERSUS_VIEWS.includes(view);
 
   return (
     <>
       <Backdrop />
 
-      <div className={`hall-badge ${hallStatus}`} hidden={Boolean(inBattle)}>
+      <div className={`hall-badge ${hallStatus}`} hidden={!showHall}>
         <span className="hall-dot" />
         <span>
           {hallStatus === 'online'
-            ? `${waiting} ${lang === 'ko' ? '명 대기' : 'waiting'}`
+            ? (lang === 'ko' ? `${online}명 접속 중` : `${online} online`)
             : hallStatus === 'connecting'
               ? (lang === 'ko' ? '연결 중' : 'connecting')
               : (lang === 'ko' ? '오프라인' : 'offline')}
