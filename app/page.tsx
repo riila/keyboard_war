@@ -20,8 +20,18 @@ type MatchKind = 'random' | 'friend';
 
 const REMATCH_GRACE = 1200;
 
-/** How many people are waiting only matters once you are looking for a match. */
+/** Who else is online only matters once you are looking for a match. */
 const VERSUS_VIEWS: View[] = ['versus', 'search', 'handoff', 'friend', 'room', 'result'];
+
+/** The winner's stored row and the loser's local one describe one match. */
+function sameMatch(a: RecentMatch, b: RecentMatch) {
+  return (
+    a.p1_nick === b.p1_nick &&
+    a.p2_nick === b.p2_nick &&
+    a.rounds === b.rounds &&
+    a.end_reason === b.end_reason
+  );
+}
 
 export default function Page() {
   const [lang, setLang] = useState<Lang>('ko');
@@ -275,21 +285,45 @@ export default function Page() {
     setView('result');
 
     const p = pairing.current;
+    const me = nick || 'Wanderer';
+    let just: RecentMatch | null = null;
+
     if (p && battle?.mode === 'pvp') {
+      const them = p.peer.nick || '?';
+      // Only the winner writes the row, so the loser used to fetch the list
+      // before that row existed and never saw the match they had just played.
+      // This side already knows everything the list shows, so put the match up
+      // straight away and let the fetched rows fall in behind it.
+      just = {
+        p1_nick: r.won ? me : them,
+        p2_nick: r.won ? them : me,
+        end_reason: r.forfeit ? 'forfeit' : 'ko',
+        rounds: r.exchanges,
+        p1_speed: null,
+        created_at: new Date().toISOString(),
+      };
+      setRecent([just]);
+
       const ok = await saveMatch({
         mode: matchKind.current,
         lang,
         rounds: r.exchanges,
         endReason: r.forfeit ? 'forfeit' : 'ko',
         iWon: r.won,
-        me: { nick: nick || 'Wanderer', speed: r.speed, accuracy: r.accuracy, combo: r.bestCombo, hp: r.hpLeft },
-        them: { nick: p.peer.nick || '?', speed: 0, accuracy: 0, combo: 0, hp: r.foeHpLeft },
+        me: { nick: me, speed: r.speed, accuracy: r.accuracy, combo: r.bestCombo, hp: r.hpLeft },
+        them: { nick: them, speed: 0, accuracy: 0, combo: 0, hp: r.foeHpLeft },
       });
       if (r.won) setSaveNote(ok ? { text: T[lang].saved } : { text: T[lang].saveFailed, bad: true });
     }
     // the link stays open on purpose: a rematch is arranged over it, and
     // closing it here made the loser read the winner's exit as a forfeit
-    recentMatches(6).then(setRecent);
+    const rows = await recentMatches(6);
+    const head = just;
+    setRecent(
+      head
+        ? [head, ...rows.filter((x) => !sameMatch(x, head))].slice(0, 6)
+        : rows,
+    );
   }, [battle?.mode, clearTimers, lang, nick]);
 
   const again = useCallback(() => {

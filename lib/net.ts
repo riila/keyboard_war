@@ -209,7 +209,12 @@ export class Hall {
 
 /* ------------------------------------------------------------------ */
 
-export type MatchEvent = 'round' | 'prog' | 'done' | 'res' | 'start' | 'bye' | 'rdy';
+/**
+ * One list, so a new event cannot be typed but left unsubscribed — which is
+ * exactly how 'rdy' arrived at the channel with nothing listening for it.
+ */
+export const MATCH_EVENTS = ['round', 'prog', 'done', 'res', 'start', 'bye', 'rdy'] as const;
+export type MatchEvent = (typeof MATCH_EVENTS)[number];
 
 /** One channel per pairing: the fight's own wire. */
 export class MatchLink {
@@ -231,8 +236,7 @@ export class MatchLink {
       config: { presence: { key: selfId }, broadcast: { self: false } },
     });
 
-    const events: MatchEvent[] = ['round', 'prog', 'done', 'res', 'start', 'bye'];
-    for (const ev of events) {
+    for (const ev of MATCH_EVENTS) {
       ch.on('broadcast', { event: ev }, ({ payload }) => this.handlers.get(ev)?.(payload));
     }
 
