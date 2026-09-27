@@ -98,9 +98,12 @@ export class Hall {
 
     ch.on('broadcast', { event: 'invite' }, ({ payload }) => {
       const p = payload as { toId: string; matchId: string; host: Member; kind: InviteKind };
+      const kind = p.kind ?? 'friend';
       if (p.toId !== this.me.id || this.paired) return;
+      // a rematch offer is only welcome from someone who asked for one
+      if (kind === 'rematch' && !this.me.seeking) return;
       this.paired = true;
-      this.onInvite?.(p.host, p.matchId, p.kind ?? 'friend');
+      this.onInvite?.(p.host, p.matchId, kind);
     });
 
     const ok = await new Promise<boolean>((resolve) => {
@@ -206,11 +209,13 @@ export class Hall {
 
 /* ------------------------------------------------------------------ */
 
-export type MatchEvent = 'round' | 'prog' | 'done' | 'res' | 'start' | 'bye';
+export type MatchEvent = 'round' | 'prog' | 'done' | 'res' | 'start' | 'bye' | 'rdy';
 
 /** One channel per pairing: the fight's own wire. */
 export class MatchLink {
   private ch: RealtimeChannel | null = null;
+  private live = false;
+  private outbox: { event: MatchEvent; payload: Record<string, unknown> }[] = [];
   private handlers = new Map<MatchEvent, (p: any) => void>();
   private leftCb: (() => void) | null = null;
   private selfId: string;
@@ -237,7 +242,10 @@ export class MatchLink {
     });
 
     ch.subscribe((status) => {
-      if (status === 'SUBSCRIBED') ch.track({ id: selfId, at: Date.now() });
+      if (status !== 'SUBSCRIBED') return;
+      ch.track({ id: selfId, at: Date.now() });
+      this.live = true;
+      for (const m of this.outbox.splice(0)) this.raw(m.event, m.payload);
     });
     this.ch = ch;
   }
@@ -245,7 +253,14 @@ export class MatchLink {
   on(event: MatchEvent, cb: (payload: any) => void) { this.handlers.set(event, cb); }
   onPeerLeft(cb: () => void) { this.leftCb = cb; }
 
+  /** Sends made before the channel is up are held, not dropped. */
   send(event: MatchEvent, payload: Record<string, unknown> = {}) {
+    if (!this.ch) return;
+    if (!this.live) { this.outbox.push({ event, payload }); return; }
+    this.raw(event, payload);
+  }
+
+  private raw(event: MatchEvent, payload: Record<string, unknown>) {
     this.ch?.send({ type: 'broadcast', event, payload: { ...payload, from: this.selfId } });
   }
 
@@ -253,6 +268,8 @@ export class MatchLink {
     if (!this.ch) return;
     const ch = this.ch;
     this.ch = null;
+    this.live = false;
+    this.outbox = [];
     this.handlers.clear();
     this.leftCb = null;
     try { ch.send({ type: 'broadcast', event: 'bye', payload: { from: this.selfId } }); } catch {}

@@ -170,6 +170,8 @@ export class BattleEngine {
   private caps = false; private capsKnown = false;
   private raf = 0; private timers: number[] = [];
   private destroyed = false;
+  /** Set the moment a fighter drops: the result is settled from here on. */
+  private decided = false;
 
   constructor(root: HTMLElement, opts: EngineOptions) {
     this.root = root;
@@ -266,7 +268,7 @@ export class BattleEngine {
   }
 
   private forfeit() {
-    if (this.destroyed || this.phase === 'over') return;
+    if (this.destroyed || this.decided || this.phase === 'over') return;
     const live = this.phase === 'countdown' || this.phase === 'round' || this.phase === 'resolve';
     if (!live) return;
     this.finish(true, true);
@@ -452,6 +454,8 @@ export class BattleEngine {
     if (this.ally.hp <= 0 || this.foe.hp <= 0) {
       // a bot match is a holding pattern, not a contest: it never ends
       if (this.o.mode === 'bot') { this.later(() => this.nextSet(), 1100); return; }
+      // the fight is decided; the loser must not read the winner's exit as a forfeit
+      this.decided = true;
       this.later(() => this.finish(this.foe.hp <= 0, false), 900);
       return;
     }

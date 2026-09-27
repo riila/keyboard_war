@@ -15,6 +15,7 @@ export interface Strings {
   frPlaceholder: string;
   confirm: string; back: string; leave: string; startBtn: string; cancel: string;
   rmTitle: string; rmLead: string; rmYou: string; rmFriend: string;
+  rmRematchWait: string;
   skTitle: string; skLead: string; skFound: string; skNone: string;
   skRematchAsk: string; skRematchGo: string;
   hoTitle: string; hoLead: string; hoYou: string; hoThem: string;
@@ -66,6 +67,7 @@ const ko: Strings = {
   confirm: '확인', back: '돌아가기', leave: '나가기', startBtn: '시작', cancel: '취소',
   rmTitle: '대기실', rmLead: '둘 다 준비되면 시작하세요.',
   rmYou: '그대', rmFriend: '친구',
+  rmRematchWait: '친구도 재도전을 누르면 바로 시작합니다.',
   skTitle: '랜덤 대전', skLead: '상대를 찾는 중…',
   skFound: '상대를 찾았습니다.',
   skNone: '접속 중인 상대가 없어 봇과 대전합니다.',
@@ -130,6 +132,7 @@ const en: Strings = {
   confirm: 'Connect', back: 'Back', leave: 'Leave', startBtn: 'Start', cancel: 'Cancel',
   rmTitle: 'Lobby', rmLead: 'Start once you’re both ready.',
   rmYou: 'You', rmFriend: 'Friend',
+  rmRematchWait: 'Starts the moment your friend hits Fight Again too.',
   skTitle: 'Random match', skLead: 'Looking for an opponent…',
   skFound: 'Opponent found.',
   skNone: 'Nobody is online right now — you’ll face a bot.',

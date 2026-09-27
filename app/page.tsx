@@ -49,6 +49,8 @@ export default function Page() {
   const pairing = useRef<Pairing | null>(null);
   const lastPeer = useRef<Member | null>(null);
   const matchKind = useRef<MatchKind>('random');
+  /** True only once this player has actually asked for a rematch. */
+  const rematch = useRef(false);
   const botLv = useRef(START_LV);
   const timers = useRef<number[]>([]);
   const viewRef = useRef<View>('menu');
@@ -127,6 +129,7 @@ export default function Page() {
     clearTimers();
     closeLink();
     pairing.current = null;
+    rematch.current = false;
     hall.current?.setSeeking(false);
     hall.current?.releasePair();
     setBattle(null);
@@ -138,6 +141,7 @@ export default function Page() {
     clearTimers();
     closeLink();
     pairing.current = null;
+    rematch.current = false;
     setBattle({
       mode: 'bot', isHost: true, foeNick: '', botLevel: botLv.current,
       key: 'bot-' + Date.now(),
@@ -150,6 +154,7 @@ export default function Page() {
     clearTimers();
     closeLink();
     pairing.current = null;
+    rematch.current = false;
     matchKind.current = 'random';
     setNetMsg({ text: '' });
     setSeekLeft(SEEK_SECONDS);
@@ -157,19 +162,11 @@ export default function Page() {
 
     const h = hall.current;
     const prev = avoidPrev ? lastPeer.current : null;
+    // Being in the hall is not enough to be matched — you have to be seeking,
+    // which only happens when you press the button. The previous opponent is
+    // held back for a moment so a genuinely new waiter wins the race, then
+    // becomes eligible through the same pairing path as anyone else.
     h?.setSeeking(true, prev ? { id: prev.id, ms: REMATCH_GRACE } : undefined);
-
-    // after the grace period, offer the previous opponent a rematch directly
-    if (prev) {
-      later(() => {
-        if (viewRef.current !== 'search' || pairing.current) return;
-        const still = h?.memberById(prev.id);
-        if (still) {
-          const p = h!.invite(still, 'rematch');
-          enterHandoff(p);
-        }
-      }, REMATCH_GRACE);
-    }
 
     let left = SEEK_SECONDS;
     const tick = window.setInterval(() => {
@@ -217,24 +214,45 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearTimers, openLink]);
 
-  /* guest side of a friend lobby waits for the host's start */
+  const startFriendMatch = useCallback((announce: boolean) => {
+    const p = pairing.current;
+    if (!p) return;
+    clearTimers();
+    rematch.current = false;
+    if (announce) link.current?.send('start', {});
+    setBattle({
+      mode: 'pvp', isHost: p.isHost, foeNick: p.peer.nick || '?',
+      botLevel: botLv.current, key: p.matchId + '-' + Date.now(),
+    });
+    setView('battle');
+  }, [clearTimers]);
+
+  /* friend lobby: the guest waits for the host's start, and a rematch begins
+     only once both sides have pressed the button. */
   useEffect(() => {
     if (view !== 'room' || !link.current) return;
     const l = link.current;
+
     l.on('start', () => {
-      const p = pairing.current;
-      if (!p) return;
-      setBattle({
-        mode: 'pvp', isHost: false, foeNick: p.peer.nick || '?',
-        botLevel: botLv.current, key: p.matchId,
-      });
-      setView('battle');
+      if (viewRef.current !== 'room' || pairing.current?.isHost) return;
+      startFriendMatch(false);
     });
+
+    l.on('rdy', () => {
+      if (viewRef.current !== 'room' || !rematch.current) return;
+      if (!pairing.current?.isHost) { l.send('rdy', {}); return; }
+      startFriendMatch(true);
+    });
+
     l.onPeerLeft(() => {
+      if (viewRef.current !== 'room') return;
+      // the hall is the honest signal: a peer re-entering this lobby drops off
+      // the match channel for a moment without having left the game
+      if (hall.current?.memberById(pairing.current?.peer.id ?? '')) return;
       setNetMsg({ text: T[lang].netLeft, tone: 'err' });
       setView('friend');
     });
-  }, [view, lang]);
+  }, [view, lang, startFriendMatch]);
 
   /* ---------------- finish ---------------- */
   const onFinish = useCallback(async (r: FinishResult) => {
@@ -256,28 +274,28 @@ export default function Page() {
       });
       if (r.won) setSaveNote(ok ? { text: T[lang].saved } : { text: T[lang].saveFailed, bad: true });
     }
-    closeLink();
+    // the link stays open on purpose: a rematch is arranged over it, and
+    // closing it here made the loser read the winner's exit as a forfeit
     recentMatches(6).then(setRecent);
-  }, [battle?.mode, clearTimers, closeLink, lang, nick]);
+  }, [battle?.mode, clearTimers, lang, nick]);
 
   const again = useCallback(() => {
     if (matchKind.current === 'friend' && pairing.current) {
-      const p = pairing.current;
-      if (p.isHost) {
-        openLink(p.matchId, p.peer);
-        later(() => {
-          link.current?.send('start', {});
-          setBattle({ mode: 'pvp', isHost: true, foeNick: p.peer.nick, botLevel: botLv.current, key: p.matchId + '-r' + Date.now() });
-          setView('battle');
-        }, 300);
-      } else {
-        setRoomLead(T[lang].roomGuest);
-        setView('room');
-      }
+      rematch.current = true;
+      setRoomLead(T[lang].rmRematchWait);
+      setView('room');
+      // the friend may still be sitting on their result screen with nothing
+      // listening, so keep offering until they answer
+      const beat = () => {
+        if (viewRef.current !== 'room' || !rematch.current) return;
+        link.current?.send('rdy', {});
+        later(beat, 1500);
+      };
+      beat();
       return;
     }
     startSearch(true);
-  }, [lang, later, openLink, startSearch]);
+  }, [lang, later, startSearch]);
 
   /* ---------------- keyboard ---------------- */
   useEffect(() => {
@@ -523,11 +541,8 @@ export default function Page() {
                 className="btn-main"
                 disabled={!pairing.current?.isHost}
                 onClick={() => {
-                  const p = pairing.current;
-                  if (!p?.isHost) return;
-                  link.current?.send('start', {});
-                  setBattle({ mode: 'pvp', isHost: true, foeNick: p.peer.nick, botLevel: botLv.current, key: p.matchId });
-                  setView('battle');
+                  if (!pairing.current?.isHost) return;
+                  startFriendMatch(true);
                 }}
               >
                 {d.startBtn}
